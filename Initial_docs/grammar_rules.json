@@ -1,0 +1,53 @@
+{
+    "pronouns": [
+        "Unë",
+        "Ti",
+        "Ai",
+        "Ajo",
+        "Ne",
+        "Ju",
+        "Ata",
+        "Ato"
+    ],
+    "verb_tenses": [
+        "Present",
+        "Imperfect",
+        "Aorist",
+        "Perfect",
+        "Pluperfect",
+        "Future",
+        "Future Perfect",
+        "Future in the Past",
+        "Future Perfect in the Past"
+    ],
+    "verb_moods": [
+        "Indicative",
+        "Subjunctive",
+        "Conditional",
+        "Imperative",
+        "Optative",
+        "Admirative"
+    ],
+    "noun_cases": [
+        "Nominative",
+        "Accusative",
+        "Genitive",
+        "Dative",
+        "Ablative"
+    ],
+    "noun_forms": [
+        "Definite",
+        "Indefinite",
+        "Singular",
+        "Plural"
+    ],
+    "rules": {
+        "adjective_agreement": {
+            "M_prefix": "i",
+            "F_prefix": "e",
+            "M_plural": "të",
+            "F_plural": "të"
+        },
+        "partial_credit_threshold": 0.8
+    }
+}

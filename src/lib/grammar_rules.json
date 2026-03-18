@@ -1,0 +1,46 @@
+{
+    "pronouns": [
+        "Unë",
+        "Ti",
+        "Ai/Ajo",
+        "Ne",
+        "Ju",
+        "Ata/Ato"
+    ],
+    "verb_tenses": [
+        "indicative_present",
+        "indicative_imperfect",
+        "indicative_aorist",
+        "subjunctive_present",
+        "imperative_present",
+        "participle"
+    ],
+    "tense_labels": {
+        "indicative_present": "Present",
+        "indicative_imperfect": "Imperfect",
+        "indicative_aorist": "Aorist",
+        "subjunctive_present": "Subjunctive",
+        "imperative_present": "Imperative",
+        "participle": "Participle"
+    },
+    "noun_cases": [
+        "Nominative",
+        "Accusative",
+        "Genitive",
+        "Dative",
+        "Ablative"
+    ],
+    "noun_forms": [
+        "Definite",
+        "Indefinite",
+        "Singular",
+        "Plural"
+    ],
+    "rules": {
+        "adjective_agreement": {
+            "M_prefix": "i",
+            "F_prefix": "e"
+        },
+        "partial_credit_threshold": 0.8
+    }
+}
