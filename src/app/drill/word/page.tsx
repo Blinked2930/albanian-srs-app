@@ -19,7 +19,7 @@ const getSupabase = () => {
 };
 
 // ────────────────────────────────────────────────────────────────
-// Word-type filter definitions (Consolidated)
+// Word-type filter definitions
 // ────────────────────────────────────────────────────────────────
 const TYPE_FILTERS = [
   {
@@ -80,6 +80,156 @@ const TYPE_FILTERS = [
   },
 ];
 
+// ────────────────────────────────────────────────────────────────
+// UI Component: Interactive Dictionary Modal
+// ────────────────────────────────────────────────────────────────
+const DictionaryModal = ({ word, onClose }: { word: any | null; onClose: () => void }) => {
+  const [grammarData, setGrammarData] = useState<any[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!word) return;
+    
+    const fetchGrammar = async () => {
+      setLoading(true);
+      const supabase = getSupabase();
+      if (!supabase) return;
+
+      try {
+        if (word.type === "Verb" || word.type === "Command") {
+          const { data } = await supabase.from('conjugations').select('*').eq('vocab_id', word.id);
+          setGrammarData(data || []);
+        } else if (word.type === "Adjective") {
+          const { data } = await supabase.from('adjective_agreements').select('*').eq('vocab_id', word.id);
+          setGrammarData(data || []);
+        } else if (word.type?.startsWith("Noun")) {
+          const { data } = await supabase.from('noun_declensions').select('*').eq('vocab_id', word.id);
+          setGrammarData(data || []);
+        } else {
+          setGrammarData([]); 
+        }
+      } catch (err) {
+        console.error("Failed to fetch grammar details", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGrammar();
+  }, [word]);
+
+  if (!word) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="glassmorphism w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border border-white/10 shadow-2xl relative text-left">
+        <button 
+          onClick={onClose} 
+          className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors p-2 bg-white/5 hover:bg-white/10 rounded-full"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+
+        <div className="p-6 md:p-8">
+          <div className="mb-6">
+            <span className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-1 block">
+              {word.type || "Uncategorized"}
+            </span>
+            <h2 className="text-3xl font-black text-white">{word.albanian}</h2>
+            <p className="text-lg text-white/60 mt-1">{word.english}</p>
+          </div>
+
+          <div className="border-t border-white/10 pt-6">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-10 opacity-50">
+                 <div className="w-6 h-6 border-2 border-white/20 border-t-indigo-400 rounded-full animate-spin mb-2"></div>
+                 <p className="text-sm">Fetching grammar matrices...</p>
+              </div>
+            ) : grammarData && grammarData.length > 0 ? (
+              
+              word.type === "Verb" || word.type === "Command" ? (
+                <div className="space-y-6">
+                  {grammarData.map((conj, idx) => (
+                    <div key={idx} className="bg-black/30 rounded-xl border border-white/5 overflow-hidden">
+                      <div className="bg-white/5 px-4 py-2 border-b border-white/5 font-semibold text-sm text-indigo-300">
+                        {conj.mood_tense?.replace(/_/g, ' ')?.toUpperCase() || "UNKNOWN TENSE"}
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2 p-4 text-sm">
+                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Unë</span> <span className="font-medium">{conj.une || "—"}</span></div>
+                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ti</span> <span className="font-medium">{conj.ti || "—"}</span></div>
+                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ai/Ajo</span> <span className="font-medium">{conj.ai_ajo || "—"}</span></div>
+                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ne</span> <span className="font-medium">{conj.ne || "—"}</span></div>
+                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ju</span> <span className="font-medium">{conj.ju || "—"}</span></div>
+                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ata/Ato</span> <span className="font-medium">{conj.ata_ato || "—"}</span></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : 
+
+              word.type?.startsWith("Noun") ? (
+                <div className="space-y-6">
+                  {grammarData.map((decl, idx) => (
+                    <div key={idx} className="bg-black/30 rounded-xl border border-white/5 overflow-hidden">
+                      <div className="bg-white/5 px-4 py-2 border-b border-white/5 font-semibold text-sm text-sky-300">
+                        {decl.n_case?.toUpperCase() || "UNKNOWN CASE"}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 text-sm">
+                        <div className="space-y-2">
+                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold">Singular</div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef.</span> <span className="font-medium">{decl.indef_sg || "—"}</span></div>
+                           <div className="flex justify-between"><span className="text-white/50">Def.</span> <span className="font-medium">{decl.def_sg || "—"}</span></div>
+                        </div>
+                        <div className="space-y-2">
+                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold mt-4 md:mt-0">Plural</div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef.</span> <span className="font-medium">{decl.indef_pl || "—"}</span></div>
+                           <div className="flex justify-between"><span className="text-white/50">Def.</span> <span className="font-medium">{decl.def_pl || "—"}</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : 
+
+              word.type === "Adjective" ? (
+                <div className="space-y-6">
+                  {grammarData.map((agr, idx) => (
+                    <div key={idx} className="bg-black/30 rounded-xl border border-white/5 overflow-hidden">
+                      <div className="bg-white/5 px-4 py-2 border-b border-white/5 font-semibold text-sm text-emerald-300">
+                        {agr.adj_case?.toUpperCase() || "UNKNOWN CASE"}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 text-sm">
+                         <div className="space-y-2">
+                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold">Singular</div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Masc.</span> <span className="font-medium">{agr.indef_masc_sg || "—"}</span></div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Def. Masc.</span> <span className="font-medium">{agr.def_masc_sg || "—"}</span></div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Fem.</span> <span className="font-medium">{agr.indef_fem_sg || "—"}</span></div>
+                           <div className="flex justify-between"><span className="text-white/50">Def. Fem.</span> <span className="font-medium">{agr.def_fem_sg || "—"}</span></div>
+                        </div>
+                        <div className="space-y-2">
+                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold mt-4 md:mt-0">Plural</div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Masc.</span> <span className="font-medium">{agr.indef_masc_pl || "—"}</span></div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Def. Masc.</span> <span className="font-medium">{agr.def_masc_pl || "—"}</span></div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Fem.</span> <span className="font-medium">{agr.indef_fem_pl || "—"}</span></div>
+                           <div className="flex justify-between"><span className="text-white/50">Def. Fem.</span> <span className="font-medium">{agr.def_fem_pl || "—"}</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null
+            ) : (
+              <div className="text-center py-8 text-white/40">
+                <p>No grammar matrices needed or available for this word.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function WordDrill() {
   const [phase, setPhase] = useState<"loading" | "setup" | "drill">("loading");
   
@@ -95,6 +245,9 @@ export default function WordDrill() {
     expected: string;
     promptId: string;
   } | null>(null);
+  
+  // NEW: State for dictionary modal inside the drill
+  const [modalWord, setModalWord] = useState<any | null>(null);
   
   const [dbVocab, setDbVocab] = useState<any[]>([]);
   const dbVocabRef = useRef<any[]>([]);
@@ -112,7 +265,6 @@ export default function WordDrill() {
   const [dbAdjectives, setDbAdjectives] = useState<any[]>([]);
   const dbAdjectivesRef = useRef<any[]>([]);
 
-  // NEW: Ref to strictly control focus on the input field
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -155,11 +307,11 @@ export default function WordDrill() {
     loadData();
   }, []);
 
-  // NEW: Global keyboard listener to catch "Enter" specifically when feedback is showing
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && feedback && currentPrompt && feedback.promptId === currentPrompt.promptId) {
-        e.preventDefault(); // Prevent accidental double-submissions or form bugs
+      // Prevent shortcut if the dictionary modal is open
+      if (e.key === 'Enter' && feedback && currentPrompt && feedback.promptId === currentPrompt.promptId && !modalWord) {
+        e.preventDefault(); 
         generatePrompt();
       }
     };
@@ -171,14 +323,13 @@ export default function WordDrill() {
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [feedback, currentPrompt, phase]);
+  }, [feedback, currentPrompt, phase, modalWord]);
 
-  // NEW: Force focus on the input field whenever a new prompt loads
   useEffect(() => {
-    if (currentPrompt && !feedback && inputRef.current) {
+    if (currentPrompt && !feedback && inputRef.current && !modalWord) {
       inputRef.current.focus();
     }
-  }, [currentPrompt, feedback]);
+  }, [currentPrompt, feedback, modalWord]);
 
   function applyTypeFilter(vocab: any[]) {
     return vocab.filter(word =>
@@ -367,10 +518,8 @@ export default function WordDrill() {
       last_seen: new Date().toISOString()
     };
 
-    // Update the database
     await supabase.from("vocab").update(updatedValues).eq("id", prompt.id);
 
-    // Update the local reference array explicitly mapping to database columns to prevent immediate repeats
     const idx = dbVocabRef.current.findIndex((w: any) => w.id === prompt.id);
     if (idx !== -1) {
       dbVocabRef.current[idx] = { ...dbVocabRef.current[idx], ...updatedValues };
@@ -447,6 +596,14 @@ export default function WordDrill() {
     const score = evaluateAnswer(currentPrompt.expected, userInput, grammarRules.rules.partial_credit_threshold);
     setFeedback({ score, expected: currentPrompt.expected, promptId: currentPrompt.promptId });
     updateMastery(currentPrompt, score);
+  };
+
+  const openDictionaryForCurrentWord = () => {
+    if (!currentPrompt) return;
+    const baseWord = dbVocabRef.current.find(w => w.id === currentPrompt.id);
+    if (baseWord) {
+      setModalWord(baseWord);
+    }
   };
 
   if (phase === "loading") {
@@ -560,7 +717,7 @@ export default function WordDrill() {
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <input
                 type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)}
-                ref={inputRef} // NEW: Attach the strict focus ref here
+                ref={inputRef}
                 disabled={!!(feedback && feedback.promptId === currentPrompt?.promptId)} autoComplete="off"
                 className="w-full bg-black/30 border border-white/10 focus:border-indigo-500 outline-none rounded-xl px-4 py-4 text-center text-xl transition-all disabled:opacity-50"
                 placeholder="Type your answer..."
@@ -591,11 +748,24 @@ export default function WordDrill() {
                     Expected: <span className="font-bold text-white">{feedback.expected}</span>
                   </p>
                 )}
+                
+                {/* NEW: Button to trigger the Dictionary Modal */}
+                <button 
+                  type="button" 
+                  onClick={openDictionaryForCurrentWord}
+                  className="mt-4 flex items-center justify-center gap-2 mx-auto text-sm text-white/50 hover:text-white transition-colors hover:bg-white/5 px-3 py-1.5 rounded-lg"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                  View Grammar Details
+                </button>
               </div>
             )}
           </>
         )}
       </div>
+
+      <DictionaryModal word={modalWord} onClose={() => setModalWord(null)} />
+
     </main>
   );
 }
