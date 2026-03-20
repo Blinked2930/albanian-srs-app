@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { 
   evaluateAnswer, 
   scheduleSRS, 
@@ -231,6 +232,7 @@ const DictionaryModal = ({ word, onClose }: { word: any | null; onClose: () => v
 };
 
 export default function WordDrill() {
+  const router = useRouter();
   const [phase, setPhase] = useState<"loading" | "setup" | "drill">("loading");
   
   const [selectedFilters, setSelectedFilters] = useState<Set<string>>(
@@ -246,7 +248,6 @@ export default function WordDrill() {
     promptId: string;
   } | null>(null);
   
-  // NEW: State for dictionary modal inside the drill
   const [modalWord, setModalWord] = useState<any | null>(null);
   
   const [dbVocab, setDbVocab] = useState<any[]>([]);
@@ -353,6 +354,7 @@ export default function WordDrill() {
   function startDrill() {
     const filtered = applyTypeFilter(dbVocabRef.current);
     filteredVocabRef.current = filtered;
+    
     setPhase("drill");
     setCaughtUp(false);
     pickAndSetPrompt(filtered);
@@ -592,8 +594,10 @@ export default function WordDrill() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentPrompt || !userInput.trim()) return;
-    const score = evaluateAnswer(currentPrompt.expected, userInput, grammarRules.rules.partial_credit_threshold);
+    if (!currentPrompt) return; 
+    const finalInput = userInput.trim();
+    const score = finalInput === "" ? 0.0 : evaluateAnswer(currentPrompt.expected, finalInput, grammarRules.rules.partial_credit_threshold);
+    
     setFeedback({ score, expected: currentPrompt.expected, promptId: currentPrompt.promptId });
     updateMastery(currentPrompt, score);
   };
@@ -679,13 +683,13 @@ export default function WordDrill() {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"></div>
 
         <header className="mb-10 text-center relative">
-          <button
-            onClick={() => { setPhase("setup"); setCurrentPrompt(null); setFeedback(null); setUserInput(""); setCaughtUp(false); }}
+          <Link
+            href="/"
             className="absolute left-0 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10"
-            title="Back to type selection"
+            title="Back to Hub"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-          </button>
+          </Link>
           <p className="text-xs uppercase tracking-widest text-indigo-400 font-semibold mb-2">Drill Mode · SM-2</p>
           <h1 className="text-3xl font-bold tracking-tight">Translate</h1>
         </header>
@@ -695,9 +699,9 @@ export default function WordDrill() {
             <p className="text-4xl mb-4">🎉</p>
             <p className="text-xl font-bold text-emerald-400 mb-2">All caught up!</p>
             <p className="text-white/50 text-sm mb-6">No words are due for review right now.<br/>Come back later when more are scheduled.</p>
-            <button onClick={() => setPhase("setup")} className="bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-6 rounded-xl transition-colors">
-              ← Back to selection
-            </button>
+            <Link href="/" className="bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-6 rounded-xl transition-colors inline-block">
+              ← Back to Hub
+            </Link>
           </div>
         )}
 
@@ -724,7 +728,7 @@ export default function WordDrill() {
               />
 
               {(!feedback || feedback.promptId !== currentPrompt?.promptId) ? (
-                <button type="submit" disabled={!userInput.trim()} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-indigo-500/20 active:scale-[0.98]">
+                <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-indigo-500/20 active:scale-[0.98]">
                   Check
                 </button>
               ) : (
@@ -749,7 +753,6 @@ export default function WordDrill() {
                   </p>
                 )}
                 
-                {/* NEW: Button to trigger the Dictionary Modal */}
                 <button 
                   type="button" 
                   onClick={openDictionaryForCurrentWord}
