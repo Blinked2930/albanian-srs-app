@@ -9,12 +9,12 @@ export function middleware(req: NextRequest) {
     const authValue = basicAuth.split(' ')[1];
     const [user, pwd] = atob(authValue).split(':');
 
-    // We pull the credentials from your environment variables, 
-    // with fallbacks just in case you forget to set them in Vercel.
-    const validUser = process.env.BASIC_AUTH_USER || 'emmett';
-    const validPass = process.env.BASIC_AUTH_PASS || 'albania2026';
+    // Pull the secure credentials from your environment variables
+    const validUser = process.env.BASIC_AUTH_USER;
+    const validPass = process.env.BASIC_AUTH_PASS;
 
-    if (user === validUser && pwd === validPass) {
+    // Check that the environment variables exist AND that the user input matches them
+    if (validUser && validPass && user === validUser && pwd === validPass) {
       return NextResponse.next();
     }
   }
