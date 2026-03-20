@@ -88,6 +88,12 @@ export default function WordDrill() {
   const [dbConjugations, setDbConjugations] = useState<any[]>([]);
   const dbConjugationsRef = useRef<any[]>([]);
 
+  const [dbNouns, setDbNouns] = useState<any[]>([]);
+  const dbNounsRef = useRef<any[]>([]);
+
+  const [dbAdjectives, setDbAdjectives] = useState<any[]>([]);
+  const dbAdjectivesRef = useRef<any[]>([]);
+
   useEffect(() => {
     async function loadData() {
       const supabase = getSupabase();
@@ -109,6 +115,18 @@ export default function WordDrill() {
       if (conjData) {
         dbConjugationsRef.current = conjData;
         setDbConjugations(conjData);
+      }
+
+      const { data: nounData } = await supabase.from("noun_declensions").select("*");
+      if (nounData) {
+        dbNounsRef.current = nounData;
+        setDbNouns(nounData);
+      }
+
+      const { data: adjData } = await supabase.from("adjective_agreements").select("*");
+      if (adjData) {
+        dbAdjectivesRef.current = adjData;
+        setDbAdjectives(adjData);
       }
 
       setPhase("setup");
@@ -144,7 +162,6 @@ export default function WordDrill() {
   }
 
   function pickAndSetPrompt(vocab: any[]) {
-    // Step 1: Pick the "Weakest" Word based on SRS schedule
     const word = pickDueWord(vocab);
 
     if (!word) {
@@ -157,7 +174,6 @@ export default function WordDrill() {
     let constraints: string[] = [];
     let expectedAnswer = word.albanian;
     
-    // Variables for Specific Tracker
     let finalTargetTense: string | null = null;
     let finalTargetPronoun: string | null = null;
     let finalTargetCase: string | null = null;
@@ -165,13 +181,11 @@ export default function WordDrill() {
     let finalTargetPlurality: string | null = null;
     let finalTargetGender: string | null = null;
 
-    // Helper to calculate Urgency globally (Importance * (1 - Mastery))
     const getUrgency = (type: string, value: string) => {
       const metric = grammarMetricsRef.current.find(m => m.dimension_type === type && m.dimension_value === value);
       return metric ? metric.importance * (1 - metric.mastery_score) : 2.5; 
     };
 
-    // Step 2: Pick the "Weakest" Attributes for that specific word
     if (word.type === "Verb") {
       const targetTense = grammarRules.verb_tenses.reduce((mostUrgent, current) => {
         return getUrgency('tense', current) > getUrgency('tense', mostUrgent) ? current : mostUrgent;
@@ -225,8 +239,17 @@ export default function WordDrill() {
 
       constraints = [finalTargetGender, finalTargetPlurality];
       
-      // Placeholder until Adjective tables are built
-      expectedAnswer = `i ${word.albanian}`; 
+      const adjData = dbAdjectivesRef.current.find(a => a.vocab_id === word.id);
+      if (adjData) {
+        const colMap: any = {
+          "Masculine:Singular": "masc_sg",
+          "Feminine:Singular": "fem_sg",
+          "Masculine:Plural": "masc_pl",
+          "Feminine:Plural": "fem_pl"
+        };
+        const col = colMap[`${finalTargetGender}:${finalTargetPlurality}`];
+        expectedAnswer = adjData[col] || word.albanian;
+      }
 
     } else if (word.type?.startsWith("Noun")) {
       finalTargetCase = grammarRules.noun_cases.reduce((mostUrgent, current) => {
@@ -241,8 +264,17 @@ export default function WordDrill() {
 
       constraints = [finalTargetCase, finalTargetDefiniteness, finalTargetPlurality];
       
-      // Placeholder until Noun Declension tables are built
-      expectedAnswer = word.albanian; 
+      const nounData = dbNounsRef.current.find(n => n.vocab_id === word.id && n.n_case === finalTargetCase);
+      if (nounData) {
+        const colMap: any = {
+          "Indefinite:Singular": "indef_sg",
+          "Definite:Singular": "def_sg",
+          "Indefinite:Plural": "indef_pl",
+          "Definite:Plural": "def_pl"
+        };
+        const col = colMap[`${finalTargetDefiniteness}:${finalTargetPlurality}`];
+        expectedAnswer = nounData[col] || word.albanian;
+      }
     }
 
     const promptId = Math.random().toString(36).slice(2);
@@ -259,7 +291,6 @@ export default function WordDrill() {
       usefulness:  word.usefulness  ?? 5,
       mastery_score: word.mastery_score ?? 0.0,
       
-      // Pass down constraints for DB logging
       targetTense: finalTargetTense,
       targetPronoun: finalTargetPronoun,
       targetCase: finalTargetCase,
@@ -279,7 +310,6 @@ export default function WordDrill() {
     const supabase = getSupabase();
     if (!supabase) return;
 
-    // 1. Core SM-2 Update for the Word
     const schedule = scheduleSRS(score, prompt.interval, prompt.ease_factor, prompt.streak, prompt.usefulness);
 
     await supabase.from("vocab").update({
@@ -303,7 +333,6 @@ export default function WordDrill() {
 
     let grammarMasteryId = null;
 
-    // Helper: Global Grammar Metrics Updater
     const updateMetric = async (dType: string, dValue: string) => {
       const oldStat = grammarMetricsRef.current.find(m => m.dimension_type === dType && m.dimension_value === dValue);
       if (oldStat) {
@@ -316,7 +345,6 @@ export default function WordDrill() {
       }
     };
 
-    // Helper: Specific Word Grammar Mastery Updater
     const updateSpecificMastery = async (gType: string, gValue: string) => {
       let { data: masteryData } = await supabase.from("grammar_mastery")
         .select("id, mastery_score").eq("vocab_id", prompt.id).eq("grammar_type", gType).eq("grammar_value", gValue).single();
@@ -333,7 +361,6 @@ export default function WordDrill() {
       }
     };
 
-    // 3. Handle Grammar Tracking (Verbs, Nouns, Adjectives)
     if (prompt.type === "Verb") {
       const { targetPronoun, targetTense } = prompt;
       if (targetTense && targetPronoun) {
@@ -360,7 +387,6 @@ export default function WordDrill() {
       }
     }
 
-    // 4. Insert Review Log
     await supabase.from("review_logs").insert({ 
       vocab_id: prompt.id, grammar_mastery_id: grammarMasteryId, score, created_at: new Date().toISOString() 
     });

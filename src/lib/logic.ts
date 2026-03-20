@@ -42,10 +42,9 @@ function levenshteinDistance(a: string, b: string): number {
 
 /**
  * Evaluates the answer to determine correctness or partial credit.
- * (DO NOT MODIFY — core evaluation mechanic)
  * @param expected The correct expected answer
  * @param answer The user's given answer
- * @param threshold The similarity threshold (default from grammar_rules.json is 0.8)
+ * @param threshold The similarity threshold (default 0.8)
  * @returns A score: 1.0 for exact, 0.5 for > threshold accuracy, 0.0 for less
  */
 export function evaluateAnswer(expected: string, answer: string, threshold: number = 0.8): number {
@@ -65,9 +64,6 @@ export function evaluateAnswer(expected: string, answer: string, threshold: numb
 
 // ────────────────────────────────────────────────────────────────
 // SM-2 Spaced Repetition Scheduling
-// Based on the SuperMemo SM-2 algorithm (Wozniak, 1987)
-// with a usefulness-weighted interval cap inspired by the
-// Ebbinghaus forgetting curve.
 // ────────────────────────────────────────────────────────────────
 
 export interface SRSSchedule {
@@ -86,15 +82,6 @@ const MAX_EASE = 4.0;
 // usefulness=5 → max 180 days.
 const MAX_INTERVAL_BY_USEFULNESS = (u: number) => Math.max(30, 210 - u * 18);
 
-/**
- * SM-2 scheduling: computes the next review schedule based on the
- * answer score, current state, and user-defined usefulness priority.
- *
- * Score → action:
- *   1.0 (Perfect) → extend interval, maintain/boost ease
- *   0.5 (Partial) → reset streak, shrink ease, review in 1 day
- *   0.0 (Fail)    → reset streak, shrink ease more, review today
- */
 export function scheduleSRS(
     score: number,
     currentInterval: number,
@@ -107,47 +94,38 @@ export function scheduleSRS(
     let newInterval = currentInterval;
 
     if (score === 1.0) {
-        // Perfect: increase streak and compute new interval (SM-2 steps)
         newStreak = streak + 1;
         if (newStreak === 1) {
             newInterval = 1;
         } else if (newStreak === 2) {
             newInterval = 6;
         } else {
-            // Subsequent reps: interval × ease_factor
             newInterval = Math.round(currentInterval * easeFactor);
         }
-        // Slight ease boost for perfect recall (optional, keeps it dynamic)
         newEaseFactor = Math.min(MAX_EASE, easeFactor + 0.1);
 
     } else if (score === 0.5) {
-        // Partial credit: review tomorrow, slightly penalise ease
         newStreak = 0;
         newEaseFactor = Math.max(MIN_EASE, easeFactor - 0.15);
         newInterval = 1;
 
     } else {
-        // Total fail: review again today (10-min cooldown), penalise ease more
         newStreak = 0;
         newEaseFactor = Math.max(MIN_EASE, easeFactor - 0.20);
         newInterval = 0;
     }
 
-    // Apply usefulness multiplier: high-priority words get shorter intervals
-    // so they surface more frequently (never let a critical word slip away)
     const maxInterval = MAX_INTERVAL_BY_USEFULNESS(usefulness);
     const adjustedInterval = Math.min(maxInterval, Math.max(0, newInterval));
 
-    // Calculate next_review timestamp
     const nextReviewDate = new Date();
     if (adjustedInterval === 0) {
-        // Fail → review in 10 minutes (prevents immediate back-to-back spam)
+        // Fail → review in 10 minutes
         nextReviewDate.setMinutes(nextReviewDate.getMinutes() + 10);
     } else {
         nextReviewDate.setDate(nextReviewDate.getDate() + adjustedInterval);
     }
 
-    // Map interval → mastery_score (0→0.0, 50 days→1.0, capped)
     const newMastery = Math.min(1.0, adjustedInterval / 50);
     const newConfidence =
         newMastery >= 0.75 ? "Mastered" :
@@ -165,28 +143,29 @@ export function scheduleSRS(
 }
 
 /**
- * Priority-queue selector: returns the single most-urgent due word,
- * or null if nothing is due yet.
- *
- * Priority order:
- *   1. New words (no next_review) — sorted by usefulness desc
- *   2. Overdue words — sorted by how long ago they were due (desc),
- *      then by usefulness as a tiebreaker
+ * Priority-queue selector: returns the single most-urgent due word.
+ * Prevents back-to-back repetitions by filtering out the last studied word.
  */
-export function pickDueWord(vocab: any[]): any | null {
+export function pickDueWord(vocab: any[], lastWordId?: string): any | null {
     const now = new Date();
 
-    const dueWords = vocab.filter(w =>
-        !w.next_review || new Date(w.next_review) <= now
+    // 1. Filter for due words AND explicitly block the one we just studied
+    let dueWords = vocab.filter(w =>
+        (!w.next_review || new Date(w.next_review) <= now) &&
+        w.id !== lastWordId
     );
 
-    if (dueWords.length === 0) return null;
+    // 2. If the queue is empty, you are done for now!
+    if (dueWords.length === 0) {
+        return null; 
+    }
 
+    // 3. Sort by New vs. Overdue, then by Usefulness
     dueWords.sort((a, b) => {
         const aIsNew = !a.next_review;
         const bIsNew = !b.next_review;
 
-        // New words get top priority so they enter the rotation immediately
+        // New words get top priority
         if (aIsNew && !bIsNew) return -1;
         if (!aIsNew && bIsNew) return 1;
         if (aIsNew && bIsNew) {
@@ -194,7 +173,7 @@ export function pickDueWord(vocab: any[]): any | null {
             return (b.usefulness ?? 5) - (a.usefulness ?? 5);
         }
 
-        // Both overdue: most overdue (earliest next_review) first
+        // Both overdue: most overdue first
         const timeDiff = new Date(a.next_review).getTime() - new Date(b.next_review).getTime();
         if (timeDiff !== 0) return timeDiff;
 
@@ -206,8 +185,7 @@ export function pickDueWord(vocab: any[]): any | null {
 }
 
 // ────────────────────────────────────────────────────────────────
-// Dimensional Metrics Tracking
-// Tracks mastery of abstract grammatical concepts (e.g., tenses, pronouns)
+// Dimensional Metrics Tracking (Verbs, Nouns, Adjectives)
 // ────────────────────────────────────────────────────────────────
 
 export interface GrammarMetric {
@@ -216,16 +194,23 @@ export interface GrammarMetric {
     dimension_value: string;
     mastery_score: number;
     total_reviews: number;
+    importance: number; 
 }
 
 /**
- * Determines WHICH tense and pronoun to test for a due verb
- * based on the user's global weaknesses in the grammar_metrics table.
- * 
- * @param availableTenses Array of tenses available for this verb (e.g., ['present', 'aorist'])
- * @param availablePronouns Array of pronouns (e.g., ['unë', 'ti', 'ai/ajo', 'ne', 'ju', 'ata/ato'])
- * @param grammarMetrics Array of rows fetched from the grammar_metrics table
- * @returns Object with the selected targetTense and targetPronoun
+ * Helper to calculate "Urgency" for a specific grammar dimension.
+ * Urgency = Importance * (1 - Mastery)
+ */
+function getUrgency(type: string, value: string, grammarMetrics: GrammarMetric[]): number {
+    const metric = grammarMetrics.find(m => m.dimension_type === type && m.dimension_value === value);
+    if (!metric) {
+        return 5 * (1 - 0.5); // Fallback Urgency
+    }
+    return metric.importance * (1 - metric.mastery_score);
+}
+
+/**
+ * Determines the weakest Tense and Pronoun to test for a due verb.
  */
 export function determineWeakestConjugation(
     availableTenses: string[], 
@@ -233,47 +218,73 @@ export function determineWeakestConjugation(
     grammarMetrics: GrammarMetric[]
 ): { targetTense: string, targetPronoun: string } {
     
-    // Helper to extract score, defaulting to 0.5 if we haven't tracked it yet
-    const getScore = (type: string, value: string) => {
-        const metric = grammarMetrics.find(m => m.dimension_type === type && m.dimension_value === value);
-        return metric ? metric.mastery_score : 0.5; // Default to mid-level mastery for new concepts
-    };
-
-    // Find the tense with the lowest mastery score
-    const targetTense = availableTenses.reduce((weakest, current) => {
-        return getScore('tense', current) < getScore('tense', weakest) ? current : weakest;
+    const targetTense = availableTenses.reduce((mostUrgent, current) => {
+        return getUrgency('tense', current, grammarMetrics) > getUrgency('tense', mostUrgent, grammarMetrics) ? current : mostUrgent;
     });
 
-    // Find the pronoun with the lowest mastery score
-    const targetPronoun = availablePronouns.reduce((weakest, current) => {
-        return getScore('pronoun', current) < getScore('pronoun', weakest) ? current : weakest;
+    const targetPronoun = availablePronouns.reduce((mostUrgent, current) => {
+        return getUrgency('pronoun', current, grammarMetrics) > getUrgency('pronoun', mostUrgent, grammarMetrics) ? current : mostUrgent;
     });
 
     return { targetTense, targetPronoun };
 }
 
 /**
- * Calculates the new global mastery score for a grammar dimension.
- * Uses an Exponential Moving Average (EMA) to smooth out typos.
- * 
- * @param currentScore The score from grammar_metrics (0.0 to 1.0)
- * @param answerScore The score from evaluateAnswer (0.0, 0.5, or 1.0)
- * @param totalReviews How many times this has been tested
- * @returns {number} The new mastery score
+ * Determines the weakest Case, Number, and Definiteness to test for a due noun.
+ */
+export function determineWeakestNounForm(
+    grammarMetrics: GrammarMetric[]
+): { targetCase: string, targetNumber: string, targetDefiniteness: string } {
+    
+    const cases = ['Nominative', 'Accusative', 'Genitive', 'Dative', 'Ablative'];
+    const numbers = ['Singular', 'Plural'];
+    const definiteness = ['Indefinite', 'Definite'];
+
+    const targetCase = cases.reduce((mostUrgent, current) => 
+        getUrgency('case', current, grammarMetrics) > getUrgency('case', mostUrgent, grammarMetrics) ? current : mostUrgent
+    );
+
+    const targetNumber = numbers.reduce((mostUrgent, current) => 
+        getUrgency('number', current, grammarMetrics) > getUrgency('number', mostUrgent, grammarMetrics) ? current : mostUrgent
+    );
+
+    const targetDefiniteness = definiteness.reduce((mostUrgent, current) => 
+        getUrgency('definiteness', current, grammarMetrics) > getUrgency('definiteness', mostUrgent, grammarMetrics) ? current : mostUrgent
+    );
+
+    return { targetCase, targetNumber, targetDefiniteness };
+}
+
+/**
+ * Determines the weakest Case, Number, Definiteness, and Gender to test for a due adjective.
+ */
+export function determineWeakestAdjectiveForm(
+    grammarMetrics: GrammarMetric[]
+): { targetCase: string, targetNumber: string, targetDefiniteness: string, targetGender: string } {
+    
+    const nounForm = determineWeakestNounForm(grammarMetrics);
+    const genders = ['Masculine', 'Feminine'];
+
+    const targetGender = genders.reduce((mostUrgent, current) => 
+        getUrgency('gender', current, grammarMetrics) > getUrgency('gender', mostUrgent, grammarMetrics) ? current : mostUrgent
+    );
+
+    return { 
+        ...nounForm, 
+        targetGender 
+    };
+}
+
+/**
+ * Calculates the new global mastery score for a grammar dimension using EMA.
  */
 export function updateGlobalGrammarStat(
     currentScore: number, 
     answerScore: number, 
     totalReviews: number
 ): number {
-    // The "weight" of the new answer. 
-    // Higher alpha = new answers change the score faster.
-    // Lower alpha = it takes more answers to move the needle.
-    // We make it slightly more volatile when you have few reviews.
     const alpha = totalReviews < 10 ? 0.3 : 0.1; 
-
     const newScore = (answerScore * alpha) + (currentScore * (1 - alpha));
     
-    // Ensure it stays cleanly bounded between 0.0 and 1.0
     return Math.max(0.0, Math.min(1.0, Number(newScore.toFixed(3))));
 }

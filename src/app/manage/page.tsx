@@ -11,6 +11,11 @@ const getSupabase = () => {
   return createClient(url, key);
 };
 
+interface ReviewLog {
+  score: number;
+  created_at: string;
+}
+
 interface VocabType {
   id: string;
   albanian: string;
@@ -21,12 +26,47 @@ interface VocabType {
   mastery_score: number;
   streak: number;
   next_review: string | null;
+  review_logs?: ReviewLog[]; // Added relation for the sparkline
 }
 
 const mockCategories = ["Unknown", "Phrase", "Adjective", "Verb", "Adverb", "Noun (M)", "Noun (F)", "Command", "Preposition"];
 const mockConfidences = ["New", "Improvement", "Almost", "Mastered"];
 
 type SortKey = "albanian" | "english" | "type" | "next_review" | "confidence" | "mastery_score";
+
+// ────────────────────────────────────────────────────────────────
+// UI Component: MiniTrend (Operational Sparkline)
+// ────────────────────────────────────────────────────────────────
+const MiniTrend = ({ logs }: { logs?: ReviewLog[] }) => {
+  if (!logs || logs.length === 0) {
+    return (
+      <div className="flex gap-[2px] items-end h-4 w-12 opacity-30" title="No review history">
+        {[1, 2, 3, 4, 5].map((_, i) => (
+          <div key={i} className="w-[6px] rounded-sm bg-white/20 h-[20%]"></div>
+        ))}
+      </div>
+    );
+  }
+
+  // Grab the 5 most recent logs and sort them oldest to newest (left to right)
+  const recent = [...logs]
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .slice(-5);
+
+  return (
+    <div className="flex gap-[2px] items-end h-4 w-12" title="Last 5 reviews">
+      {/* Pad with empty bars if less than 5 reviews exist */}
+      {Array.from({ length: 5 - recent.length }).map((_, i) => (
+        <div key={`empty-${i}`} className="w-[6px] rounded-sm bg-white/10 h-[20%]"></div>
+      ))}
+      {recent.map((log, i) => {
+        const height = log.score === 1.0 ? '100%' : log.score === 0.5 ? '50%' : '20%';
+        const bg = log.score === 1.0 ? 'bg-emerald-400' : log.score === 0.5 ? 'bg-amber-400' : 'bg-rose-400';
+        return <div key={`log-${i}`} className={`w-[6px] rounded-sm ${bg} opacity-80`} style={{ height }}></div>;
+      })}
+    </div>
+  );
+};
 
 export default function ManageVocab() {
   const [vocabList, setVocabList] = useState<VocabType[]>([]);
@@ -52,9 +92,10 @@ export default function ManageVocab() {
       const supabase = getSupabase();
       if (!supabase) return;
 
+      // Notice the relation join: review_logs(score, created_at)
       const { data, error } = await supabase
         .from("vocab")
-        .select("*")
+        .select("*, review_logs(score, created_at)")
         .order("next_review", { ascending: true, nullsFirst: true });
 
       if (error) {
@@ -87,7 +128,7 @@ export default function ManageVocab() {
     const newVocab = {
       albanian: formData.albanian.trim(),
       english: formData.english.trim(),
-      type: formData.type === "Unknown" ? null : formData.type, // Map 'Unknown' to null
+      type: formData.type === "Unknown" ? null : formData.type,
       confidence: "New",
       usefulness: formData.usefulness ? parseInt(formData.usefulness, 10) : 5,
       mastery_score: 0.0,
@@ -183,7 +224,6 @@ export default function ManageVocab() {
           const row = parseCSVRow(lines[i]);
           if (!row[albIdx] || !row[engIdx]) continue;
 
-          // If type is missing or blank, send null instead of "Phrase"
           const parsedType = typeIdx !== -1 && row[typeIdx] && row[typeIdx].trim() !== "" ? row[typeIdx].trim() : null;
 
           batches.push({
@@ -279,7 +319,6 @@ export default function ManageVocab() {
         bVal = bVal ? new Date(bVal).getTime() : 0;
       }
       
-      // Handle null types cleanly when sorting
       if (sortConfig.key === "type") {
         aVal = aVal || "Unknown";
         bVal = bVal || "Unknown";
@@ -396,7 +435,7 @@ export default function ManageVocab() {
                     Status <SortIcon columnKey="confidence" />
                   </th>
                   <th className="p-4 font-semibold cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort("mastery_score")}>
-                    Mastery <SortIcon columnKey="mastery_score" />
+                    Mastery & Trend <SortIcon columnKey="mastery_score" />
                   </th>
                   <th className="p-4 font-semibold text-right">Actions</th>
                 </tr>
@@ -441,11 +480,10 @@ export default function ManageVocab() {
                       </span>
                     </td>
                     <td className="p-4">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <span className="text-xs text-white/50 font-mono w-8">{Math.round((item.mastery_score || 0) * 100)}%</span>
-                        <span className="text-xs text-white/30 flex items-center gap-1" title="Current Streak">
-                          🔥 {item.streak || 0}
-                        </span>
+                        {/* INJECTED OPERATIONAL STAT */}
+                        <MiniTrend logs={item.review_logs} />
                       </div>
                     </td>
                     <td className="p-4 text-right">
