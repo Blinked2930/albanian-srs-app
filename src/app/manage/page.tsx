@@ -26,7 +26,7 @@ interface VocabType {
   mastery_score: number;
   streak: number;
   next_review: string | null;
-  review_logs?: ReviewLog[]; // Added relation for the sparkline
+  review_logs?: ReviewLog[]; 
 }
 
 const mockCategories = ["Unknown", "Phrase", "Adjective", "Verb", "Adverb", "Noun (M)", "Noun (F)", "Command", "Preposition"];
@@ -48,14 +48,12 @@ const MiniTrend = ({ logs }: { logs?: ReviewLog[] }) => {
     );
   }
 
-  // Grab the 5 most recent logs and sort them oldest to newest (left to right)
   const recent = [...logs]
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
     .slice(-5);
 
   return (
     <div className="flex gap-[2px] items-end h-4 w-12" title="Last 5 reviews">
-      {/* Pad with empty bars if less than 5 reviews exist */}
       {Array.from({ length: 5 - recent.length }).map((_, i) => (
         <div key={`empty-${i}`} className="w-[6px] rounded-sm bg-white/10 h-[20%]"></div>
       ))}
@@ -67,6 +65,160 @@ const MiniTrend = ({ logs }: { logs?: ReviewLog[] }) => {
     </div>
   );
 };
+
+// ────────────────────────────────────────────────────────────────
+// UI Component: Interactive Dictionary Modal
+// ────────────────────────────────────────────────────────────────
+const DictionaryModal = ({ word, onClose }: { word: VocabType | null; onClose: () => void }) => {
+  const [grammarData, setGrammarData] = useState<any[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!word) return;
+    
+    const fetchGrammar = async () => {
+      setLoading(true);
+      const supabase = getSupabase();
+      if (!supabase) return;
+
+      try {
+        if (word.type === "Verb" || word.type === "Command") {
+          const { data } = await supabase.from('conjugations').select('*').eq('vocab_id', word.id);
+          setGrammarData(data || []);
+        } else if (word.type === "Adjective") {
+          const { data } = await supabase.from('adjective_agreements').select('*').eq('vocab_id', word.id);
+          setGrammarData(data || []);
+        } else if (word.type?.startsWith("Noun")) {
+          const { data } = await supabase.from('noun_declensions').select('*').eq('vocab_id', word.id);
+          setGrammarData(data || []);
+        } else {
+          setGrammarData([]); 
+        }
+      } catch (err) {
+        console.error("Failed to fetch grammar details", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGrammar();
+  }, [word]);
+
+  if (!word) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="glassmorphism w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border border-white/10 shadow-2xl relative">
+        <button 
+          onClick={onClose} 
+          className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors p-2 bg-white/5 hover:bg-white/10 rounded-full"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+
+        <div className="p-6 md:p-8">
+          <div className="mb-6">
+            <span className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-1 block">
+              {word.type || "Uncategorized"}
+            </span>
+            <h2 className="text-3xl font-black text-white">{word.albanian}</h2>
+            <p className="text-lg text-white/60 mt-1">{word.english}</p>
+          </div>
+
+          <div className="border-t border-white/10 pt-6">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-10 opacity-50">
+                 <div className="w-6 h-6 border-2 border-white/20 border-t-indigo-400 rounded-full animate-spin mb-2"></div>
+                 <p className="text-sm">Fetching grammar matrices...</p>
+              </div>
+            ) : grammarData && grammarData.length > 0 ? (
+              
+              // ── VERB TABLES ──
+              word.type === "Verb" || word.type === "Command" ? (
+                <div className="space-y-6">
+                  {grammarData.map((conj, idx) => (
+                    <div key={idx} className="bg-black/30 rounded-xl border border-white/5 overflow-hidden">
+                      <div className="bg-white/5 px-4 py-2 border-b border-white/5 font-semibold text-sm text-indigo-300">
+                        {conj.mood_tense?.replace(/_/g, ' ')?.toUpperCase() || "UNKNOWN TENSE"}
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2 p-4 text-sm">
+                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Unë</span> <span className="font-medium">{conj.une || "—"}</span></div>
+                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ti</span> <span className="font-medium">{conj.ti || "—"}</span></div>
+                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ai/Ajo</span> <span className="font-medium">{conj.ai_ajo || "—"}</span></div>
+                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ne</span> <span className="font-medium">{conj.ne || "—"}</span></div>
+                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ju</span> <span className="font-medium">{conj.ju || "—"}</span></div>
+                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ata/Ato</span> <span className="font-medium">{conj.ata_ato || "—"}</span></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : 
+
+              // ── NOUN TABLES ──
+              word.type?.startsWith("Noun") ? (
+                <div className="space-y-6">
+                  {grammarData.map((decl, idx) => (
+                    <div key={idx} className="bg-black/30 rounded-xl border border-white/5 overflow-hidden">
+                      <div className="bg-white/5 px-4 py-2 border-b border-white/5 font-semibold text-sm text-sky-300">
+                        {decl.n_case?.toUpperCase() || "UNKNOWN CASE"}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 text-sm">
+                        <div className="space-y-2">
+                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold">Singular</div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef.</span> <span className="font-medium">{decl.indef_sg || "—"}</span></div>
+                           <div className="flex justify-between"><span className="text-white/50">Def.</span> <span className="font-medium">{decl.def_sg || "—"}</span></div>
+                        </div>
+                        <div className="space-y-2">
+                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold mt-4 md:mt-0">Plural</div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef.</span> <span className="font-medium">{decl.indef_pl || "—"}</span></div>
+                           <div className="flex justify-between"><span className="text-white/50">Def.</span> <span className="font-medium">{decl.def_pl || "—"}</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : 
+
+              // ── ADJECTIVE TABLES ──
+              word.type === "Adjective" ? (
+                <div className="space-y-6">
+                  {grammarData.map((agr, idx) => (
+                    <div key={idx} className="bg-black/30 rounded-xl border border-white/5 overflow-hidden">
+                      <div className="bg-white/5 px-4 py-2 border-b border-white/5 font-semibold text-sm text-emerald-300">
+                        {agr.adj_case?.toUpperCase() || "UNKNOWN CASE"}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 text-sm">
+                         <div className="space-y-2">
+                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold">Singular</div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Masc.</span> <span className="font-medium">{agr.indef_masc_sg || "—"}</span></div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Def. Masc.</span> <span className="font-medium">{agr.def_masc_sg || "—"}</span></div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Fem.</span> <span className="font-medium">{agr.indef_fem_sg || "—"}</span></div>
+                           <div className="flex justify-between"><span className="text-white/50">Def. Fem.</span> <span className="font-medium">{agr.def_fem_sg || "—"}</span></div>
+                        </div>
+                        <div className="space-y-2">
+                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold mt-4 md:mt-0">Plural</div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Masc.</span> <span className="font-medium">{agr.indef_masc_pl || "—"}</span></div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Def. Masc.</span> <span className="font-medium">{agr.def_masc_pl || "—"}</span></div>
+                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Fem.</span> <span className="font-medium">{agr.indef_fem_pl || "—"}</span></div>
+                           <div className="flex justify-between"><span className="text-white/50">Def. Fem.</span> <span className="font-medium">{agr.def_fem_pl || "—"}</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null
+            ) : (
+              <div className="text-center py-8 text-white/40">
+                <p>No grammar matrices needed or available for this word.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 export default function ManageVocab() {
   const [vocabList, setVocabList] = useState<VocabType[]>([]);
@@ -82,6 +234,9 @@ export default function ManageVocab() {
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Modal State
+  const [selectedWord, setSelectedWord] = useState<VocabType | null>(null);
+
   useEffect(() => {
     fetchVocab();
   }, []);
@@ -92,7 +247,6 @@ export default function ManageVocab() {
       const supabase = getSupabase();
       if (!supabase) return;
 
-      // Notice the relation join: review_logs(score, created_at)
       const { data, error } = await supabase
         .from("vocab")
         .select("*, review_logs(score, created_at)")
@@ -162,7 +316,8 @@ export default function ManageVocab() {
     setFormData({ albanian: "", english: "", type: "Unknown", confidence: "New", usefulness: "" });
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevents the row click from triggering the modal
     if (!window.confirm("Are you sure you want to delete this word? This action cannot be undone.")) return;
 
     const supabase = getSupabase();
@@ -457,8 +612,14 @@ export default function ManageVocab() {
                     </tr>
                 )}
                 {!loading && processedVocab.map(item => (
-                  <tr key={item.id} className="hover:bg-white/5 transition-colors group">
-                    <td className="p-4 font-bold text-white">{item.albanian}</td>
+                  <tr 
+                    key={item.id} 
+                    onClick={() => setSelectedWord(item)}
+                    className="hover:bg-white/10 transition-colors group cursor-pointer"
+                  >
+                    <td className="p-4 font-bold text-white group-hover:text-indigo-300 transition-colors">
+                      {item.albanian}
+                    </td>
                     <td className="p-4 text-white/70">{item.english}</td>
                     <td className="p-4">
                       <span className="bg-white/5 px-2 py-1 rounded border border-white/10 text-xs text-white/70">
@@ -482,13 +643,12 @@ export default function ManageVocab() {
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-white/50 font-mono w-8">{Math.round((item.mastery_score || 0) * 100)}%</span>
-                        {/* INJECTED OPERATIONAL STAT */}
                         <MiniTrend logs={item.review_logs} />
                       </div>
                     </td>
                     <td className="p-4 text-right">
                       <button 
-                        onClick={() => handleDelete(item.id)}
+                        onClick={(e) => handleDelete(item.id, e)}
                         className="text-white/30 hover:text-rose-400 transition-colors p-2 rounded-lg hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 focus:opacity-100"
                         title="Delete word"
                       >
@@ -502,6 +662,10 @@ export default function ManageVocab() {
           </div>
         </section>
       </div>
+
+      {/* Render the interactive dictionary modal if a word is clicked */}
+      <DictionaryModal word={selectedWord} onClose={() => setSelectedWord(null)} />
+
     </main>
   );
 }

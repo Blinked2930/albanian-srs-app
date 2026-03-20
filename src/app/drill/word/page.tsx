@@ -19,7 +19,7 @@ const getSupabase = () => {
 };
 
 // ────────────────────────────────────────────────────────────────
-// Word-type filter definitions (Null-Safe)
+// Word-type filter definitions (Consolidated)
 // ────────────────────────────────────────────────────────────────
 const TYPE_FILTERS = [
   {
@@ -28,15 +28,15 @@ const TYPE_FILTERS = [
     emoji: "⚡",
     color: "from-indigo-600 to-purple-600",
     border: "border-indigo-500/40",
-    match: (t: string | null) => t === "Verb",
+    match: (t: string | null) => t === "Verb" || t === "Command",
   },
   {
     id: "Noun",
     label: "Nouns",
-    emoji: "🏷️",
-    color: "from-sky-600 to-cyan-600",
-    border: "border-sky-500/40",
-    match: (t: string | null) => t?.startsWith("Noun") || false,
+    emoji: "📘",
+    color: "from-blue-600 to-cyan-600",
+    border: "border-blue-500/40",
+    match: (t: string | null) => t === "Noun (M)" || t === "Noun (F)",
   },
   {
     id: "Adjective",
@@ -55,20 +55,38 @@ const TYPE_FILTERS = [
     match: (t: string | null) => t === "Adverb",
   },
   {
-    id: "Other",
-    label: "Other",
-    emoji: "✨",
-    color: "from-rose-600 to-pink-600",
-    border: "border-rose-500/40",
-    match: (t: string | null) => !t || (!["Verb", "Adjective", "Adverb", "Phrase"].includes(t) && !t.startsWith("Noun")),
+    id: "Phrase",
+    label: "Phrases",
+    emoji: "💬",
+    color: "from-sky-500 to-blue-500",
+    border: "border-sky-400/40",
+    match: (t: string | null) => t === "Phrase",
+  },
+  {
+    id: "Preposition",
+    label: "Prepositions",
+    emoji: "🔗",
+    color: "from-violet-600 to-indigo-600",
+    border: "border-violet-500/40",
+    match: (t: string | null) => t === "Preposition",
+  },
+  {
+    id: "New",
+    label: "Uncategorized",
+    emoji: "📦",
+    color: "from-slate-600 to-gray-600",
+    border: "border-slate-500/40",
+    match: (t: string | null) => !t || t === "Unknown",
   },
 ];
 
 export default function WordDrill() {
   const [phase, setPhase] = useState<"loading" | "setup" | "drill">("loading");
+  
   const [selectedFilters, setSelectedFilters] = useState<Set<string>>(
-    new Set(["Verb", "Noun", "Adjective", "Adverb", "Other"])
+    new Set(TYPE_FILTERS.map(f => f.id))
   );
+  
   const [currentPrompt, setCurrentPrompt] = useState<any>(null);
   const [caughtUp, setCaughtUp] = useState(false);
   const [userInput, setUserInput] = useState("");
@@ -93,6 +111,9 @@ export default function WordDrill() {
 
   const [dbAdjectives, setDbAdjectives] = useState<any[]>([]);
   const dbAdjectivesRef = useRef<any[]>([]);
+
+  // NEW: Ref to strictly control focus on the input field
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -133,6 +154,31 @@ export default function WordDrill() {
     }
     loadData();
   }, []);
+
+  // NEW: Global keyboard listener to catch "Enter" specifically when feedback is showing
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && feedback && currentPrompt && feedback.promptId === currentPrompt.promptId) {
+        e.preventDefault(); // Prevent accidental double-submissions or form bugs
+        generatePrompt();
+      }
+    };
+
+    if (phase === "drill") {
+      window.addEventListener('keydown', handleGlobalKeyDown);
+    }
+    
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [feedback, currentPrompt, phase]);
+
+  // NEW: Force focus on the input field whenever a new prompt loads
+  useEffect(() => {
+    if (currentPrompt && !feedback && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [currentPrompt, feedback]);
 
   function applyTypeFilter(vocab: any[]) {
     return vocab.filter(word =>
@@ -311,24 +357,27 @@ export default function WordDrill() {
     if (!supabase) return;
 
     const schedule = scheduleSRS(score, prompt.interval, prompt.ease_factor, prompt.streak, prompt.usefulness);
-
-    await supabase.from("vocab").update({
+    const updatedValues = {
       next_review: schedule.nextReview,
       interval: schedule.newInterval,
       ease_factor: schedule.newEaseFactor,
       streak: schedule.newStreak,
       mastery_score: schedule.newMastery,
       confidence: schedule.newConfidence,
-      last_seen: new Date().toISOString(),
-    }).eq("id", prompt.id);
+      last_seen: new Date().toISOString()
+    };
 
+    // Update the database
+    await supabase.from("vocab").update(updatedValues).eq("id", prompt.id);
+
+    // Update the local reference array explicitly mapping to database columns to prevent immediate repeats
     const idx = dbVocabRef.current.findIndex((w: any) => w.id === prompt.id);
     if (idx !== -1) {
-      dbVocabRef.current[idx] = { ...dbVocabRef.current[idx], ...schedule };
+      dbVocabRef.current[idx] = { ...dbVocabRef.current[idx], ...updatedValues };
     }
     const fidx = filteredVocabRef.current.findIndex((w: any) => w.id === prompt.id);
     if (fidx !== -1) {
-      filteredVocabRef.current[fidx] = dbVocabRef.current[idx];
+      filteredVocabRef.current[fidx] = { ...filteredVocabRef.current[fidx], ...updatedValues };
     }
 
     let grammarMasteryId = null;
@@ -417,7 +466,7 @@ export default function WordDrill() {
 
     return (
       <main className="min-h-screen bg-[#0F172A] text-white flex flex-col items-center justify-center p-6">
-        <div className="max-w-lg w-full">
+        <div className="max-w-3xl w-full">
           <div className="flex items-center gap-4 mb-8">
             <Link href="/" className="text-white/40 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
@@ -452,12 +501,12 @@ export default function WordDrill() {
             })}
           </div>
 
-          <div className="text-center">
+          <div className="text-center mt-10">
             <p className="text-white/50 text-sm mb-1">{filteredVocab.length} words in selection</p>
             <p className="text-indigo-400 text-sm font-semibold mb-4">{dueCount} due for review now</p>
             <button
               onClick={startDrill} disabled={filteredVocab.length === 0}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.98] text-lg"
+              className="w-full max-w-sm mx-auto bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.98] text-lg block"
             >
               {dueCount > 0 ? `Start Drill → ${dueCount} due` : "Start Drill →"}
             </button>
@@ -511,7 +560,8 @@ export default function WordDrill() {
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <input
                 type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)}
-                disabled={!!(feedback && feedback.promptId === currentPrompt?.promptId)} autoFocus autoComplete="off"
+                ref={inputRef} // NEW: Attach the strict focus ref here
+                disabled={!!(feedback && feedback.promptId === currentPrompt?.promptId)} autoComplete="off"
                 className="w-full bg-black/30 border border-white/10 focus:border-indigo-500 outline-none rounded-xl px-4 py-4 text-center text-xl transition-all disabled:opacity-50"
                 placeholder="Type your answer..."
               />
@@ -522,7 +572,7 @@ export default function WordDrill() {
                 </button>
               ) : (
                 <button type="button" onClick={generatePrompt} className="w-full bg-white text-black font-bold py-4 rounded-xl transition-colors hover:bg-gray-100 active:scale-[0.98]">
-                  Next Word
+                  Next Word (Press Enter)
                 </button>
               )}
             </form>
