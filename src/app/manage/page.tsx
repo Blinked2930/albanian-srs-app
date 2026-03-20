@@ -232,6 +232,7 @@ export default function ManageVocab() {
   });
 
   const [isImporting, setIsImporting] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false); // NEW: State for AI generation
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Modal State
@@ -432,6 +433,26 @@ export default function ManageVocab() {
     document.body.removeChild(link);
   };
 
+  // NEW: Handler for the Gemini AI generation route
+  const handleGenerateSentences = async () => {
+    setIsGenerating(true);
+    try {
+      const res = await fetch('/api/generate-sentences', { method: 'POST' });
+      const data = await res.json();
+      
+      if (res.ok) {
+        alert(data.message || "Sentences generated successfully!");
+      } else {
+        alert("Error: " + (data.error || "Failed to generate sentences. Check console."));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("An error occurred while calling the sentence generator.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const formatDue = (dateStr: string | null) => {
     if (!dateStr) return <span className="text-emerald-400 font-bold">Due Now</span>;
     const date = new Date(dateStr);
@@ -499,7 +520,22 @@ export default function ManageVocab() {
             <h1 className="text-3xl font-bold tracking-tight">Manage Vocab</h1>
           </div>
           
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap sm:flex-nowrap">
+            {/* NEW: Generate Sentences Button */}
+            <button 
+              onClick={handleGenerateSentences}
+              disabled={isGenerating}
+              className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 active:scale-95 disabled:opacity-50"
+              title="Generate example sentences via AI"
+            >
+              {isGenerating ? (
+                <div className="w-4 h-4 border-2 border-emerald-400/20 border-t-emerald-400 rounded-full animate-spin"></div>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
+              )}
+              {isGenerating ? "Generating..." : "Generate Sentences"}
+            </button>
+
             <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleImport} />
             <button 
               onClick={() => fileInputRef.current?.click()}

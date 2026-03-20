@@ -4,29 +4,31 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Initialize Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''; // Use Service Role key in production if bypassing RLS
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''; 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Initialize Gemini (Requires GEMINI_API_KEY in your .env.local)
+// Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export async function POST(request: Request) {
   try {
-    // 1. Fetch 5 words that currently have NO sentences associated with them
-    const { data: vocabToProcess, error: fetchError } = await supabase
+    // 1. Fetch vocab and join with the sentences table
+    const { data: allVocab, error: fetchError } = await supabase
       .from('vocab')
-      .select('id, albanian, english, type')
-      .not('id', 'in', (
-          supabase.from('sentences').select('vocab_id')
-      ))
-      .limit(5);
+      .select('id, albanian, english, type, sentences(id)');
 
     if (fetchError) throw fetchError;
+
+    // 2. Filter out words that already have sentences, take the first 5
+    const vocabToProcess = allVocab
+      .filter((v: any) => !v.sentences || v.sentences.length === 0)
+      .slice(0, 5);
+
     if (!vocabToProcess || vocabToProcess.length === 0) {
       return NextResponse.json({ message: "All words have sentences! You are fully stocked." });
     }
 
-    // 2. Construct the Tier 1 Prompt for Gemini
+    // 3. Construct the Tier 1 Prompt for Gemini
     const prompt = `
       You are an expert Albanian language curriculum designer. 
       The student is a Peace Corps Volunteer in Albania at the ACTFL Intermediate Low (CEFR A2) level.
@@ -54,31 +56,30 @@ export async function POST(request: Request) {
       ]
     `;
 
-    // 3. Ping Gemini 1.5 Flash (Fast, cheap, perfect for this)
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    // 4. Ping Gemini 1.5 Flash
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
 
-    // 4. Parse the AI response cleanly
-    // (Strip potential markdown code block artifacts)
+    // 5. Parse the AI response cleanly
     const cleanJsonString = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
     const generatedSentences = JSON.parse(cleanJsonString);
 
-    // 5. Map the AI response back to your Database IDs and prepare for insertion
+    // 6. Map the AI response back to your Database IDs
     const insertPayload = generatedSentences.map((aiSentence: any) => {
-      const parentVocab = vocabToProcess.find(v => v.albanian === aiSentence.albanian_word);
+      const parentVocab = vocabToProcess.find(v => v.albanian.toLowerCase() === aiSentence.albanian_word.toLowerCase());
       return {
         vocab_id: parentVocab?.id,
-        grammar_type: null, // We will tackle specific grammar rules in V2
+        grammar_type: null, 
         grammar_value: null,
         blanked_albanian: aiSentence.blanked_albanian,
         target_albanian: aiSentence.target_albanian,
         target_english: aiSentence.target_english,
         english_translation: aiSentence.english_translation
       };
-    }).filter((payload: any) => payload.vocab_id); // Ensure we don't insert broken mappings
+    }).filter((payload: any) => payload.vocab_id); 
 
-    // 6. Inject into Supabase
+    // 7. Inject into Supabase
     const { error: insertError } = await supabase.from('sentences').insert(insertPayload);
     if (insertError) throw insertError;
 
