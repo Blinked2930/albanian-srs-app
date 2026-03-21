@@ -184,6 +184,9 @@ export default function SentenceDrill() {
   const dbVocabRef = useRef<any[]>([]);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  // THE IRON DOOR
+  const actionLock = useRef(false);
 
   useEffect(() => {
     async function loadData() {
@@ -206,7 +209,6 @@ export default function SentenceDrill() {
     loadData();
   }, []);
 
-  // RE-ADDED: Global key listener specifically for advancing to the next sentence
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && feedback && currentPrompt && feedback.promptId === currentPrompt.promptId && !modalWord) {
@@ -268,9 +270,16 @@ export default function SentenceDrill() {
   }
 
   const generatePrompt = () => {
+    if (actionLock.current) return;
+    actionLock.current = true;
+
     setFeedback(null);
     setUserInput("");
     pickAndSetPrompt(dbVocabRef.current);
+
+    setTimeout(() => {
+      actionLock.current = false;
+    }, 300);
   };
 
   async function updateMastery(prompt: any, score: number) {
@@ -302,15 +311,23 @@ export default function SentenceDrill() {
     });
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentPrompt) return; 
+  const handleCheck = () => {
+    // Absolutely block evaluation if there is already feedback or if we're locked
+    if (!currentPrompt || actionLock.current || feedback) {
+      return; 
+    }
+
+    actionLock.current = true;
     
     const finalInput = userInput.trim();
     const score = finalInput === "" ? 0.0 : evaluateAnswer(currentPrompt.expected, finalInput, 0.8);
     
     setFeedback({ score, expected: currentPrompt.expected, promptId: currentPrompt.promptId });
     updateMastery(currentPrompt, score);
+
+    setTimeout(() => {
+      actionLock.current = false;
+    }, 100);
   };
 
   const openDictionaryForCurrentWord = () => {
@@ -421,7 +438,14 @@ export default function SentenceDrill() {
               </div>
             </section>
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {/* ONLY THE CHECK LOGIC LIVES IN THE FORM */}
+            <form 
+              onSubmit={(e) => { 
+                e.preventDefault(); 
+                handleCheck(); 
+              }} 
+              className="flex flex-col gap-4"
+            >
               <input
                 key={`input-${currentPrompt?.promptId}`}
                 type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)}
@@ -431,46 +455,53 @@ export default function SentenceDrill() {
                 placeholder="Type the missing Albanian word..."
               />
 
-              {(!feedback || feedback.promptId !== currentPrompt?.promptId) ? (
+              {!feedback && (
                 <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-emerald-500/20 active:scale-[0.98]">
                   Check
-                </button>
-              ) : (
-                <button type="button" onClick={generatePrompt} className="w-full bg-white text-black font-bold py-4 rounded-xl transition-colors hover:bg-gray-100 active:scale-[0.98]">
-                  Next Sentence (Press Enter)
                 </button>
               )}
             </form>
 
+            {/* THE NEXT BUTTON IS NOW 100% OUTSIDE OF THE FORM */}
             {feedback && feedback.promptId === currentPrompt?.promptId && (
-              <div className={`mt-6 p-6 rounded-xl text-center font-medium animate-in fade-in slide-in-from-bottom-2 ${
-                feedback.score === 1.0 ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20" :
-                feedback.score > 0    ? "bg-amber-500/10  text-amber-300  border border-amber-500/20"  :
-                                        "bg-rose-500/10   text-rose-300   border border-rose-500/20"
-              }`}>
-                {feedback.score === 1.0 && <p className="text-lg font-bold mb-2">Perfect! ✓</p>}
-                {feedback.score > 0 && feedback.score < 1.0 && <p className="text-lg font-bold mb-2">Almost! ½</p>}
-                {feedback.score === 0.0 && <p className="text-lg font-bold mb-2">Incorrect!</p>}
-                
-                {feedback.score < 1.0 && (
-                  <p className="mt-2 text-base text-white/80">
-                    The missing word was: <span className="font-bold text-white">{feedback.expected}</span>
-                  </p>
-                )}
-
-                <div className="mt-4 pt-4 border-t border-white/10 text-sm">
-                  <p className="text-white/60 mb-1">Full Translation:</p>
-                  <p className="text-white font-medium italic">"{currentPrompt.english_translation}"</p>
-                </div>
-                
+              <div className="mt-4 flex flex-col gap-4">
                 <button 
                   type="button" 
-                  onClick={openDictionaryForCurrentWord}
-                  className="mt-5 flex items-center justify-center gap-2 mx-auto text-sm text-white/50 hover:text-white transition-colors hover:bg-white/5 px-3 py-1.5 rounded-lg"
+                  onClick={generatePrompt} 
+                  className="w-full bg-white text-black font-bold py-4 rounded-xl transition-colors hover:bg-gray-100 active:scale-[0.98]"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                  View Grammar Details
+                  Next Sentence (Press Enter)
                 </button>
+                
+                <div className={`p-6 rounded-xl text-center font-medium animate-in fade-in slide-in-from-bottom-2 ${
+                  feedback.score === 1.0 ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20" :
+                  feedback.score > 0    ? "bg-amber-500/10  text-amber-300  border border-amber-500/20"  :
+                                          "bg-rose-500/10   text-rose-300   border border-rose-500/20"
+                }`}>
+                  {feedback.score === 1.0 && <p className="text-lg font-bold mb-2">Perfect! ✓</p>}
+                  {feedback.score > 0 && feedback.score < 1.0 && <p className="text-lg font-bold mb-2">Almost! ½</p>}
+                  {feedback.score === 0.0 && <p className="text-lg font-bold mb-2">Incorrect!</p>}
+                  
+                  {feedback.score < 1.0 && (
+                    <p className="mt-2 text-base text-white/80">
+                      The missing word was: <span className="font-bold text-white">{feedback.expected}</span>
+                    </p>
+                  )}
+
+                  <div className="mt-4 pt-4 border-t border-white/10 text-sm">
+                    <p className="text-white/60 mb-1">Full Translation:</p>
+                    <p className="text-white font-medium italic">"{currentPrompt.english_translation}"</p>
+                  </div>
+                  
+                  <button 
+                    type="button" 
+                    onClick={openDictionaryForCurrentWord}
+                    className="mt-5 flex items-center justify-center gap-2 mx-auto text-sm text-white/50 hover:text-white transition-colors hover:bg-white/5 px-3 py-1.5 rounded-lg"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    View Grammar Details
+                  </button>
+                </div>
               </div>
             )}
           </>
