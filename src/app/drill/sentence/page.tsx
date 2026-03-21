@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { 
   evaluateAnswer, 
   scheduleSRS, 
-  pickDueWord
+  pickDueWord,
+  updateGlobalGrammarStat
 } from "@/lib/logic";
 import { createClient } from "@supabase/supabase-js";
 
@@ -183,31 +184,65 @@ export default function SentenceDrill() {
   const [dbVocab, setDbVocab] = useState<any[]>([]);
   const dbVocabRef = useRef<any[]>([]);
 
+  // Grammar Metrics State
+  const [grammarMetrics, setGrammarMetrics] = useState<any[]>([]);
+  const grammarMetricsRef = useRef<any[]>([]);
+
   const inputRef = useRef<HTMLInputElement>(null);
-  
-  // THE IRON DOOR
   const actionLock = useRef(false);
 
-  useEffect(() => {
-    async function loadData() {
-      const supabase = getSupabase();
-      if (!supabase) { setPhase("setup"); return; }
-      
-      const { data: vocabData } = await supabase
-        .from("vocab")
-        .select("*, sentences(id, blanked_albanian, target_albanian, target_english, english_translation)")
-        .not('sentences', 'is', null);
-        
-      if (vocabData) {
-        const validVocab = vocabData.filter(v => v.sentences && v.sentences.length > 0);
-        dbVocabRef.current = validVocab;
-        setDbVocab(validVocab);
-      }
+  const [isGenerating, setIsGenerating] = useState(false);
 
-      setPhase("setup");
-    }
+  useEffect(() => {
     loadData();
   }, []);
+
+  async function loadData() {
+    setPhase("loading");
+    const supabase = getSupabase();
+    if (!supabase) { setPhase("setup"); return; }
+    
+    // Fetch global metrics
+    const { data: metricsData } = await supabase.from("grammar_metrics").select("*");
+    if (metricsData) {
+      grammarMetricsRef.current = metricsData;
+      setGrammarMetrics(metricsData);
+    }
+
+    // Fetch sentences with grammar tracking fields
+    const { data: vocabData } = await supabase
+      .from("vocab")
+      .select("*, sentences(id, blanked_albanian, target_albanian, target_english, english_translation, grammar_type, grammar_value)")
+      .not('sentences', 'is', null);
+      
+    if (vocabData) {
+      const validVocab = vocabData.filter(v => v.sentences && v.sentences.length > 0);
+      dbVocabRef.current = validVocab;
+      setDbVocab(validVocab);
+    }
+
+    setPhase("setup");
+  }
+
+  const handleGenerateSentences = async () => {
+    setIsGenerating(true);
+    try {
+      const res = await fetch('/api/generate-sentences', { method: 'POST' });
+      const data = await res.json();
+      
+      if (res.ok) {
+        alert(data.message || "Sentences generated successfully!");
+        await loadData();
+      } else {
+        alert("Error: " + (data.error || "Failed to generate sentences. Check console."));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("An error occurred while calling the sentence generator.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -258,6 +293,8 @@ export default function SentenceDrill() {
       target_english: randomSentence.target_english,
       expected: randomSentence.target_albanian.toLowerCase(),
       english_translation: randomSentence.english_translation,
+      grammar_type: randomSentence.grammar_type,
+      grammar_value: randomSentence.grammar_value,
       type: word.type,
       
       // SRS Data
@@ -286,6 +323,7 @@ export default function SentenceDrill() {
     const supabase = getSupabase();
     if (!supabase) return;
 
+    // 1. Update Core Vocab SRS
     const schedule = scheduleSRS(score, prompt.interval, prompt.ease_factor, prompt.streak, prompt.usefulness);
     const updatedValues = {
       next_review: schedule.nextReview,
@@ -304,15 +342,68 @@ export default function SentenceDrill() {
       dbVocabRef.current[idx] = { ...dbVocabRef.current[idx], ...updatedValues };
     }
 
+    // 2. Parse AI Grammar String & Distribute Global Grammar Updates
+    let grammarMasteryId = null;
+
+    if (prompt.grammar_type && prompt.grammar_value) {
+      const gType = prompt.grammar_type;
+      const gValue = prompt.grammar_value;
+      
+      const updateMetric = async (dType: string, dValue: string) => {
+        const oldStat = grammarMetricsRef.current.find(m => m.dimension_type === dType && m.dimension_value === dValue);
+        if (oldStat) {
+          const newScore = updateGlobalGrammarStat(oldStat.mastery_score, score, oldStat.total_reviews);
+          oldStat.mastery_score = newScore;
+          oldStat.total_reviews += 1;
+          await supabase.from("grammar_metrics").update({
+            mastery_score: newScore, total_reviews: oldStat.total_reviews, updated_at: new Date().toISOString()
+          }).eq("id", oldStat.id);
+        }
+      };
+
+      // Word-specific grammar mastery
+      let { data: masteryData } = await supabase.from("grammar_mastery")
+        .select("id, mastery_score").eq("vocab_id", prompt.vocab_id).eq("grammar_type", gType).eq("grammar_value", gValue).single();
+
+      if (masteryData) {
+        grammarMasteryId = masteryData.id;
+        const newMastery = updateGlobalGrammarStat(masteryData.mastery_score, score, 5); 
+        await supabase.from("grammar_mastery").update({ mastery_score: newMastery, last_seen: new Date().toISOString() }).eq("id", grammarMasteryId);
+      } else {
+        const { data: newData } = await supabase.from("grammar_mastery").insert({
+          vocab_id: prompt.vocab_id, grammar_type: gType, grammar_value: gValue, mastery_score: score, last_seen: new Date().toISOString()
+        }).select("id").single();
+        if (newData) grammarMasteryId = newData.id;
+      }
+
+      // Splitting logic for multidimensional global tracking
+      if (gType === "conjugation") {
+        const [tense, pronoun] = gValue.split(":");
+        if (tense && tense !== "participle") await updateMetric("tense", tense);
+        if (tense === "participle") await updateMetric("tense", "participle");
+        if (pronoun) await updateMetric("pronoun", pronoun);
+      } else if (gType === "noun_declension") {
+        const [n_case, definiteness, plurality] = gValue.split(":");
+        if (n_case) await updateMetric("noun_case", n_case);
+        if (definiteness) await updateMetric("noun_definiteness", definiteness);
+        if (plurality) await updateMetric("noun_plurality", plurality);
+      } else if (gType === "adjective_agreement") {
+        const [gender, plurality] = gValue.split(":");
+        if (gender) await updateMetric("adjective_gender", gender);
+        if (plurality) await updateMetric("adjective_plurality", plurality);
+      }
+    }
+
+    // 3. Log the review event
     await supabase.from("review_logs").insert({ 
       vocab_id: prompt.vocab_id, 
+      grammar_mastery_id: grammarMasteryId,
       score, 
       created_at: new Date().toISOString() 
     });
   }
 
   const handleCheck = () => {
-    // Absolutely block evaluation if there is already feedback or if we're locked
     if (!currentPrompt || actionLock.current || feedback) {
       return; 
     }
@@ -354,7 +445,7 @@ export default function SentenceDrill() {
     return (
       <main className="min-h-screen bg-[#0F172A] text-white flex items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-white/40">
-          <div className="w-8 h-8 border-4 border-white/20 border-t-white/60 rounded-full animate-spin"></div>
+          <div className="w-8 h-8 border-4 border-white/20 border-t-emerald-400 rounded-full animate-spin"></div>
           <p className="text-sm">Loading context drills...</p>
         </div>
       </main>
@@ -382,15 +473,35 @@ export default function SentenceDrill() {
             <p className="text-white/50 mb-6">Words with available sentences</p>
             
             <p className="text-emerald-400 font-medium mb-6">
-              {dueCount > 0 ? `${dueCount} ready for review right now.` : `All caught up!`}
+              {dueCount > 0 ? `${dueCount} ready for review right now.` : `No sentences currently due.`}
             </p>
 
-            <button
-              onClick={startDrill} disabled={dbVocabRef.current.length === 0}
-              className="w-full max-w-sm mx-auto bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] text-lg block"
-            >
-              {dueCount > 0 ? `Start Context Drill` : "Start Context Drill"}
-            </button>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto">
+              <button
+                onClick={startDrill} disabled={dbVocabRef.current.length === 0}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] text-lg block"
+              >
+                {dueCount > 0 ? `Start Context Drill` : "Start Context Drill"}
+              </button>
+
+              <button 
+                onClick={handleGenerateSentences}
+                disabled={isGenerating}
+                className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-4 rounded-xl transition-colors flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50 text-sm"
+              >
+                {isGenerating ? (
+                  <div className="flex items-center gap-2">
+                     <div className="w-4 h-4 border-2 border-white/20 border-t-emerald-400 rounded-full animate-spin"></div>
+                     Generating...
+                  </div>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" className="text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
+                    Generate More Sentences
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </main>
@@ -418,10 +529,26 @@ export default function SentenceDrill() {
           <div className="text-center py-10">
             <p className="text-4xl mb-4">🎉</p>
             <p className="text-xl font-bold text-emerald-400 mb-2">All caught up!</p>
-            <p className="text-white/50 text-sm mb-6">You've completed all available context drills.<br/>Generate more sentences in the Manage tab.</p>
-            <Link href="/" className="bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-6 rounded-xl transition-colors inline-block">
-              ← Back to Hub
-            </Link>
+            <p className="text-white/50 text-sm mb-8">You've completed all available context drills.</p>
+            
+            <div className="flex flex-col gap-4 max-w-xs mx-auto">
+              <button 
+                  onClick={handleGenerateSentences}
+                  disabled={isGenerating}
+                  className="w-full bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 font-medium py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                >
+                  {isGenerating ? (
+                    <div className="w-5 h-5 border-2 border-emerald-400/20 border-t-emerald-400 rounded-full animate-spin"></div>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                  )}
+                  {isGenerating ? "Generating..." : "Generate AI Sentences"}
+              </button>
+
+              <Link href="/" className="bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-6 rounded-xl transition-colors inline-block w-full">
+                ← Back to Hub
+              </Link>
+            </div>
           </div>
         )}
 
@@ -438,7 +565,6 @@ export default function SentenceDrill() {
               </div>
             </section>
 
-            {/* ONLY THE CHECK LOGIC LIVES IN THE FORM */}
             <form 
               onSubmit={(e) => { 
                 e.preventDefault(); 
@@ -462,7 +588,6 @@ export default function SentenceDrill() {
               )}
             </form>
 
-            {/* THE NEXT BUTTON IS NOW 100% OUTSIDE OF THE FORM */}
             {feedback && feedback.promptId === currentPrompt?.promptId && (
               <div className="mt-4 flex flex-col gap-4">
                 <button 
@@ -488,9 +613,17 @@ export default function SentenceDrill() {
                     </p>
                   )}
 
-                  <div className="mt-4 pt-4 border-t border-white/10 text-sm">
-                    <p className="text-white/60 mb-1">Full Translation:</p>
-                    <p className="text-white font-medium italic">"{currentPrompt.english_translation}"</p>
+                  <div className="mt-4 pt-4 border-t border-white/10 text-sm flex flex-col gap-3">
+                    <div>
+                      <p className="text-white/60 mb-1">Full Translation:</p>
+                      <p className="text-white font-medium italic">"{currentPrompt.english_translation}"</p>
+                    </div>
+                    {currentPrompt.grammar_type && (
+                       <div className="bg-black/30 rounded px-3 py-2 inline-block mx-auto border border-white/5">
+                         <span className="text-white/40 uppercase tracking-wider text-[10px] block">Grammar Exercised</span>
+                         <span className="text-emerald-400 text-xs font-mono">{currentPrompt.grammar_type}: {currentPrompt.grammar_value}</span>
+                       </div>
+                    )}
                   </div>
                   
                   <button 
