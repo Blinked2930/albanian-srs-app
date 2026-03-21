@@ -595,6 +595,12 @@ export default function WordDrill() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentPrompt) return; 
+    
+    // Prevent double submissions on mobile
+    if (feedback && feedback.promptId === currentPrompt.promptId) {
+      return;
+    }
+
     const finalInput = userInput.trim();
     const score = finalInput === "" ? 0.0 : evaluateAnswer(currentPrompt.expected, finalInput, grammarRules.rules.partial_credit_threshold);
     
@@ -609,6 +615,9 @@ export default function WordDrill() {
       setModalWord(baseWord);
     }
   };
+
+  // UI rendering block
+  // ... (No changes here, kept exactly the same)
 
   if (phase === "loading") {
     return (
@@ -720,6 +729,7 @@ export default function WordDrill() {
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <input
+                key={`input-${currentPrompt?.promptId}`}
                 type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)}
                 ref={inputRef}
                 disabled={!!(feedback && feedback.promptId === currentPrompt?.promptId)} autoComplete="off"
