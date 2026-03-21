@@ -268,8 +268,8 @@ export default function WordDrill() {
 
   const inputRef = useRef<HTMLInputElement>(null);
   
-  // THE TIME WALL LOCK
-  const promptLoadedAt = useRef<number>(Date.now());
+  // THE IRON DOOR
+  const actionLock = useRef(false);
 
   useEffect(() => {
     async function loadData() {
@@ -313,7 +313,6 @@ export default function WordDrill() {
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Allow global enter to skip to next word ONLY if feedback is showing
       if (e.key === 'Enter' && feedback && currentPrompt && feedback.promptId === currentPrompt.promptId && !modalWord) {
         e.preventDefault(); 
         generatePrompt();
@@ -361,7 +360,6 @@ export default function WordDrill() {
     setPhase("drill");
     setCaughtUp(false);
     pickAndSetPrompt(filtered);
-    promptLoadedAt.current = Date.now();
   }
 
   function pickAndSetPrompt(vocab: any[]) {
@@ -504,12 +502,15 @@ export default function WordDrill() {
   }
 
   const generatePrompt = () => {
+    actionLock.current = true;
     setFeedback(null);
     setUserInput("");
     pickAndSetPrompt(filteredVocabRef.current);
     
-    // Reset the time wall lock for the new word
-    promptLoadedAt.current = Date.now();
+    // Drop the iron door for 800ms. Absolutely nothing can be submitted.
+    setTimeout(() => {
+      actionLock.current = false;
+    }, 800);
   };
 
   async function updateMastery(prompt: any, score: number) {
@@ -601,27 +602,23 @@ export default function WordDrill() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentPrompt) return; 
 
-    // 1. If feedback is currently displayed, treat submission as a "Next Word" command
-    if (feedback && feedback.promptId === currentPrompt.promptId) {
-      generatePrompt();
-      return;
+    // The Iron Door: If locked, or if feedback is already showing, completely ignore the event.
+    if (!currentPrompt || actionLock.current || feedback) {
+      return; 
     }
 
-    // 2. THE TIME WALL: If a form submission happens less than 600ms after the prompt loads,
-    // it is mathematically impossible for a human to have read it and tapped check. 
-    // It is a trailing mobile ghost-event. Kill it silently.
-    if (Date.now() - promptLoadedAt.current < 600) {
-      return;
-    }
+    actionLock.current = true; // Lock briefly during evaluation
 
-    // 3. Otherwise, legitimately evaluate the answer
     const finalInput = userInput.trim();
     const score = finalInput === "" ? 0.0 : evaluateAnswer(currentPrompt.expected, finalInput, grammarRules.rules.partial_credit_threshold);
     
     setFeedback({ score, expected: currentPrompt.expected, promptId: currentPrompt.promptId });
     updateMastery(currentPrompt, score);
+
+    setTimeout(() => {
+      actionLock.current = false;
+    }, 100);
   };
 
   const openDictionaryForCurrentWord = () => {
@@ -755,7 +752,7 @@ export default function WordDrill() {
                   Check
                 </button>
               ) : (
-                <button type="submit" className="w-full bg-white text-black font-bold py-4 rounded-xl transition-colors hover:bg-gray-100 active:scale-[0.98]">
+                <button type="button" onClick={generatePrompt} className="w-full bg-white text-black font-bold py-4 rounded-xl transition-colors hover:bg-gray-100 active:scale-[0.98]">
                   Next Word (Press Enter)
                 </button>
               )}
