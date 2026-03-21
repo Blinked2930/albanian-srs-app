@@ -267,6 +267,9 @@ export default function WordDrill() {
   const dbAdjectivesRef = useRef<any[]>([]);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  // THE TRANSITION LOCK
+  const isTransitioning = useRef(false);
 
   useEffect(() => {
     async function loadData() {
@@ -310,7 +313,6 @@ export default function WordDrill() {
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Prevent shortcut if the dictionary modal is open
       if (e.key === 'Enter' && feedback && currentPrompt && feedback.promptId === currentPrompt.promptId && !modalWord) {
         e.preventDefault(); 
         generatePrompt();
@@ -500,9 +502,15 @@ export default function WordDrill() {
   }
 
   const generatePrompt = () => {
+    isTransitioning.current = true;
     setFeedback(null);
     setUserInput("");
     pickAndSetPrompt(filteredVocabRef.current);
+    
+    // Release the lock after 400ms, effectively swallowing phantom mobile inputs
+    setTimeout(() => {
+      isTransitioning.current = false;
+    }, 400);
   };
 
   async function updateMastery(prompt: any, score: number) {
@@ -594,10 +602,13 @@ export default function WordDrill() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentPrompt) return; 
     
-    // Prevent double submissions on mobile
+    // If the transition lock is active, completely ignore the ghost submission
+    if (!currentPrompt || isTransitioning.current) return; 
+
+    // If there is already feedback on the screen, treat a double-tap as a "Next" command
     if (feedback && feedback.promptId === currentPrompt.promptId) {
+      generatePrompt();
       return;
     }
 
@@ -615,9 +626,6 @@ export default function WordDrill() {
       setModalWord(baseWord);
     }
   };
-
-  // UI rendering block
-  // ... (No changes here, kept exactly the same)
 
   if (phase === "loading") {
     return (
