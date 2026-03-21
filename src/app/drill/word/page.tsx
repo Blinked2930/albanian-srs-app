@@ -268,7 +268,6 @@ export default function WordDrill() {
 
   const inputRef = useRef<HTMLInputElement>(null);
   
-  // THE IRON DOOR
   const actionLock = useRef(false);
 
   useEffect(() => {
@@ -502,15 +501,16 @@ export default function WordDrill() {
   }
 
   const generatePrompt = () => {
+    if (actionLock.current) return;
     actionLock.current = true;
+    
     setFeedback(null);
     setUserInput("");
     pickAndSetPrompt(filteredVocabRef.current);
     
-    // Drop the iron door for 800ms. Absolutely nothing can be submitted.
     setTimeout(() => {
       actionLock.current = false;
-    }, 800);
+    }, 300);
   };
 
   async function updateMastery(prompt: any, score: number) {
@@ -600,15 +600,13 @@ export default function WordDrill() {
     });
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // The Iron Door: If locked, or if feedback is already showing, completely ignore the event.
+  const handleCheck = () => {
+    // Absolutely block evaluation if there is already feedback or if we're locked
     if (!currentPrompt || actionLock.current || feedback) {
       return; 
     }
 
-    actionLock.current = true; // Lock briefly during evaluation
+    actionLock.current = true;
 
     const finalInput = userInput.trim();
     const score = finalInput === "" ? 0.0 : evaluateAnswer(currentPrompt.expected, finalInput, grammarRules.rules.partial_credit_threshold);
@@ -737,50 +735,67 @@ export default function WordDrill() {
               </div>
             </section>
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {/* ONLY THE CHECK LOGIC LIVES IN THE FORM */}
+            <form 
+              onSubmit={(e) => { 
+                e.preventDefault(); 
+                handleCheck(); 
+              }} 
+              className="flex flex-col gap-4"
+            >
               <input
                 key={`input-${currentPrompt?.promptId}`}
-                type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)}
+                type="text" 
+                value={userInput} 
+                onChange={(e) => setUserInput(e.target.value)}
                 ref={inputRef}
-                disabled={!!(feedback && feedback.promptId === currentPrompt?.promptId)} autoComplete="off"
+                disabled={!!feedback} 
+                autoComplete="off"
                 className="w-full bg-black/30 border border-white/10 focus:border-indigo-500 outline-none rounded-xl px-4 py-4 text-center text-xl transition-all disabled:opacity-50"
                 placeholder="Type your answer..."
               />
 
-              {(!feedback || feedback.promptId !== currentPrompt?.promptId) ? (
+              {!feedback && (
                 <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-indigo-500/20 active:scale-[0.98]">
                   Check
-                </button>
-              ) : (
-                <button type="button" onClick={generatePrompt} className="w-full bg-white text-black font-bold py-4 rounded-xl transition-colors hover:bg-gray-100 active:scale-[0.98]">
-                  Next Word (Press Enter)
                 </button>
               )}
             </form>
 
+            {/* THE NEXT BUTTON IS NOW 100% OUTSIDE OF THE FORM */}
             {feedback && feedback.promptId === currentPrompt?.promptId && (
-              <div className={`mt-6 p-4 rounded-xl text-center font-medium animate-in fade-in slide-in-from-bottom-2 ${
-                feedback.score === 1.0 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/20" :
-                feedback.score > 0    ? "bg-amber-500/20  text-amber-400  border border-amber-500/20"  :
-                                        "bg-rose-500/20   text-rose-400   border border-rose-500/20"
-              }`}>
-                {feedback.score === 1.0 && <p className="text-lg">Perfect! ✓</p>}
-                {feedback.score > 0 && feedback.score < 1.0 && <p className="text-lg">Almost! ½</p>}
-                {feedback.score === 0.0 && <p className="text-lg">Incorrect!</p>}
-                {feedback.score < 1.0 && (
-                  <p className="mt-2 text-sm text-white/70">
-                    Expected: <span className="font-bold text-white">{feedback.expected}</span>
-                  </p>
-                )}
-                
+              <div className="mt-4 flex flex-col gap-4">
                 <button 
                   type="button" 
-                  onClick={openDictionaryForCurrentWord}
-                  className="mt-4 flex items-center justify-center gap-2 mx-auto text-sm text-white/50 hover:text-white transition-colors hover:bg-white/5 px-3 py-1.5 rounded-lg"
+                  onClick={generatePrompt} 
+                  className="w-full bg-white text-black font-bold py-4 rounded-xl transition-colors hover:bg-gray-100 active:scale-[0.98]"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                  View Grammar Details
+                  Next Word (Press Enter)
                 </button>
+
+                <div className={`p-4 rounded-xl text-center font-medium animate-in fade-in slide-in-from-bottom-2 ${
+                  feedback.score === 1.0 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/20" :
+                  feedback.score > 0    ? "bg-amber-500/20  text-amber-400  border border-amber-500/20"  :
+                                          "bg-rose-500/20   text-rose-400   border border-rose-500/20"
+                }`}>
+                  {feedback.score === 1.0 && <p className="text-lg">Perfect! ✓</p>}
+                  {feedback.score > 0 && feedback.score < 1.0 && <p className="text-lg">Almost! ½</p>}
+                  {feedback.score === 0.0 && <p className="text-lg">Incorrect!</p>}
+                  {feedback.score < 1.0 && (
+                    <p className="mt-2 text-sm text-white/70">
+                      Expected: <span className="font-bold text-white">{feedback.expected}</span>
+                    </p>
+                  )}
+                  
+                  <button 
+                    type="button" 
+                    onClick={openDictionaryForCurrentWord}
+                    className="mt-4 flex items-center justify-center gap-2 mx-auto text-sm text-white/50 hover:text-white transition-colors hover:bg-white/5 px-3 py-1.5 rounded-lg"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    View Grammar Details
+                  </button>
+                </div>
               </div>
             )}
           </>
