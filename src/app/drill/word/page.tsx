@@ -3,14 +3,15 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { 
-  evaluateAnswer, 
-  scheduleSRS, 
+import {
+  evaluateAnswer,
+  scheduleSRS,
   pickDueWord,
   updateGlobalGrammarStat
 } from "@/lib/logic";
 import grammarRules from "@/lib/grammar_rules.json";
 import { createClient } from "@supabase/supabase-js";
+import DictionaryModal from "@/components/DictionaryModal";
 
 const getSupabase = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -19,9 +20,6 @@ const getSupabase = () => {
   return createClient(url, key);
 };
 
-// ────────────────────────────────────────────────────────────────
-// Word-type filter definitions
-// ────────────────────────────────────────────────────────────────
 const TYPE_FILTERS = [
   {
     id: "Verb",
@@ -81,164 +79,14 @@ const TYPE_FILTERS = [
   },
 ];
 
-// ────────────────────────────────────────────────────────────────
-// UI Component: Interactive Dictionary Modal
-// ────────────────────────────────────────────────────────────────
-const DictionaryModal = ({ word, onClose }: { word: any | null; onClose: () => void }) => {
-  const [grammarData, setGrammarData] = useState<any[] | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!word) return;
-    
-    const fetchGrammar = async () => {
-      setLoading(true);
-      const supabase = getSupabase();
-      if (!supabase) return;
-
-      try {
-        if (word.type === "Verb" || word.type === "Command") {
-          const { data } = await supabase.from('conjugations').select('*').eq('vocab_id', word.id);
-          setGrammarData(data || []);
-        } else if (word.type === "Adjective") {
-          const { data } = await supabase.from('adjective_agreements').select('*').eq('vocab_id', word.id);
-          setGrammarData(data || []);
-        } else if (word.type?.startsWith("Noun")) {
-          const { data } = await supabase.from('noun_declensions').select('*').eq('vocab_id', word.id);
-          setGrammarData(data || []);
-        } else {
-          setGrammarData([]); 
-        }
-      } catch (err) {
-        console.error("Failed to fetch grammar details", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchGrammar();
-  }, [word]);
-
-  if (!word) return null;
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="glassmorphism w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border border-white/10 shadow-2xl relative text-left">
-        <button 
-          onClick={onClose} 
-          className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors p-2 bg-white/5 hover:bg-white/10 rounded-full"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
-
-        <div className="p-6 md:p-8">
-          <div className="mb-6">
-            <span className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-1 block">
-              {word.type || "Uncategorized"}
-            </span>
-            <h2 className="text-3xl font-black text-white">{word.albanian}</h2>
-            <p className="text-lg text-white/60 mt-1">{word.english}</p>
-          </div>
-
-          <div className="border-t border-white/10 pt-6">
-            {loading ? (
-              <div className="flex flex-col items-center justify-center py-10 opacity-50">
-                 <div className="w-6 h-6 border-2 border-white/20 border-t-indigo-400 rounded-full animate-spin mb-2"></div>
-                 <p className="text-sm">Fetching grammar matrices...</p>
-              </div>
-            ) : grammarData && grammarData.length > 0 ? (
-              
-              word.type === "Verb" || word.type === "Command" ? (
-                <div className="space-y-6">
-                  {grammarData.map((conj, idx) => (
-                    <div key={idx} className="bg-black/30 rounded-xl border border-white/5 overflow-hidden">
-                      <div className="bg-white/5 px-4 py-2 border-b border-white/5 font-semibold text-sm text-indigo-300">
-                        {conj.mood_tense?.replace(/_/g, ' ')?.toUpperCase() || "UNKNOWN TENSE"}
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2 p-4 text-sm">
-                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Unë</span> <span className="font-medium">{conj.une || "—"}</span></div>
-                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ti</span> <span className="font-medium">{conj.ti || "—"}</span></div>
-                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ai/Ajo</span> <span className="font-medium">{conj.ai_ajo || "—"}</span></div>
-                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ne</span> <span className="font-medium">{conj.ne || "—"}</span></div>
-                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ju</span> <span className="font-medium">{conj.ju || "—"}</span></div>
-                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ata/Ato</span> <span className="font-medium">{conj.ata_ato || "—"}</span></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : 
-
-              word.type?.startsWith("Noun") ? (
-                <div className="space-y-6">
-                  {grammarData.map((decl, idx) => (
-                    <div key={idx} className="bg-black/30 rounded-xl border border-white/5 overflow-hidden">
-                      <div className="bg-white/5 px-4 py-2 border-b border-white/5 font-semibold text-sm text-sky-300">
-                        {decl.n_case?.toUpperCase() || "UNKNOWN CASE"}
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 text-sm">
-                        <div className="space-y-2">
-                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold">Singular</div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef.</span> <span className="font-medium">{decl.indef_sg || "—"}</span></div>
-                           <div className="flex justify-between"><span className="text-white/50">Def.</span> <span className="font-medium">{decl.def_sg || "—"}</span></div>
-                        </div>
-                        <div className="space-y-2">
-                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold mt-4 md:mt-0">Plural</div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef.</span> <span className="font-medium">{decl.indef_pl || "—"}</span></div>
-                           <div className="flex justify-between"><span className="text-white/50">Def.</span> <span className="font-medium">{decl.def_pl || "—"}</span></div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : 
-
-              word.type === "Adjective" ? (
-                <div className="space-y-6">
-                  {grammarData.map((agr, idx) => (
-                    <div key={idx} className="bg-black/30 rounded-xl border border-white/5 overflow-hidden">
-                      <div className="bg-white/5 px-4 py-2 border-b border-white/5 font-semibold text-sm text-emerald-300">
-                        {agr.adj_case?.toUpperCase() || "UNKNOWN CASE"}
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 text-sm">
-                         <div className="space-y-2">
-                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold">Singular</div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Masc.</span> <span className="font-medium">{agr.indef_masc_sg || "—"}</span></div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Def. Masc.</span> <span className="font-medium">{agr.def_masc_sg || "—"}</span></div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Fem.</span> <span className="font-medium">{agr.indef_fem_sg || "—"}</span></div>
-                           <div className="flex justify-between"><span className="text-white/50">Def. Fem.</span> <span className="font-medium">{agr.def_fem_sg || "—"}</span></div>
-                        </div>
-                        <div className="space-y-2">
-                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold mt-4 md:mt-0">Plural</div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Masc.</span> <span className="font-medium">{agr.indef_masc_pl || "—"}</span></div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Def. Masc.</span> <span className="font-medium">{agr.def_masc_pl || "—"}</span></div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Fem.</span> <span className="font-medium">{agr.indef_fem_pl || "—"}</span></div>
-                           <div className="flex justify-between"><span className="text-white/50">Def. Fem.</span> <span className="font-medium">{agr.def_fem_pl || "—"}</span></div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null
-            ) : (
-              <div className="text-center py-8 text-white/40">
-                <p>No grammar matrices needed or available for this word.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 export default function WordDrill() {
   const router = useRouter();
   const [phase, setPhase] = useState<"loading" | "setup" | "drill">("loading");
-  
+
   const [selectedFilters, setSelectedFilters] = useState<Set<string>>(
     new Set(TYPE_FILTERS.map(f => f.id))
   );
-  
+
   const [currentPrompt, setCurrentPrompt] = useState<any>(null);
   const [caughtUp, setCaughtUp] = useState(false);
   const [userInput, setUserInput] = useState("");
@@ -247,9 +95,9 @@ export default function WordDrill() {
     expected: string;
     promptId: string;
   } | null>(null);
-  
+
   const [modalWord, setModalWord] = useState<any | null>(null);
-  
+
   const [dbVocab, setDbVocab] = useState<any[]>([]);
   const dbVocabRef = useRef<any[]>([]);
   const filteredVocabRef = useRef<any[]>([]);
@@ -267,14 +115,13 @@ export default function WordDrill() {
   const dbAdjectivesRef = useRef<any[]>([]);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  
   const actionLock = useRef(false);
 
   useEffect(() => {
     async function loadData() {
       const supabase = getSupabase();
       if (!supabase) { setPhase("setup"); return; }
-      
+
       const { data: vocabData } = await supabase.from("vocab").select("*");
       if (vocabData) {
         dbVocabRef.current = vocabData;
@@ -313,7 +160,7 @@ export default function WordDrill() {
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && feedback && currentPrompt && feedback.promptId === currentPrompt.promptId && !modalWord) {
-        e.preventDefault(); 
+        e.preventDefault();
         generatePrompt();
       }
     };
@@ -321,7 +168,7 @@ export default function WordDrill() {
     if (phase === "drill") {
       window.addEventListener('keydown', handleGlobalKeyDown);
     }
-    
+
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown);
     };
@@ -355,7 +202,7 @@ export default function WordDrill() {
   function startDrill() {
     const filtered = applyTypeFilter(dbVocabRef.current);
     filteredVocabRef.current = filtered;
-    
+
     setPhase("drill");
     setCaughtUp(false);
     pickAndSetPrompt(filtered);
@@ -373,7 +220,7 @@ export default function WordDrill() {
     setCaughtUp(false);
     let constraints: string[] = [];
     let expectedAnswer = word.albanian;
-    
+
     let finalTargetTense: string | null = null;
     let finalTargetPronoun: string | null = null;
     let finalTargetCase: string | null = null;
@@ -383,7 +230,7 @@ export default function WordDrill() {
 
     const getUrgency = (type: string, value: string) => {
       const metric = grammarMetricsRef.current.find(m => m.dimension_type === type && m.dimension_value === value);
-      return metric ? metric.importance * (1 - metric.mastery_score) : 2.5; 
+      return metric ? metric.importance * (1 - metric.mastery_score) : 2.5;
     };
 
     if (word.type === "Verb") {
@@ -405,7 +252,7 @@ export default function WordDrill() {
         if (targetTense === "imperative_present") validPronouns = ["Ti", "Ju"];
         if (targetTense === "participle") validPronouns = ["Unë"];
       }
-      
+
       if (validPronouns.length === 0) validPronouns = ["Unë"];
 
       const targetPronoun = validPronouns.reduce((mostUrgent, current) => {
@@ -417,7 +264,7 @@ export default function WordDrill() {
       const displayTense = (grammarRules as any).tense_labels?.[targetTense] || targetTense;
 
       if (targetTense === "participle") {
-        constraints = [displayTense]; 
+        constraints = [displayTense];
       } else if (targetTense === "imperative_present") {
         constraints = [targetPronoun, displayTense];
       } else {
@@ -438,7 +285,7 @@ export default function WordDrill() {
       });
 
       constraints = [finalTargetGender, finalTargetPlurality];
-      
+
       const adjData = dbAdjectivesRef.current.find(a => a.vocab_id === word.id);
       if (adjData) {
         const colMap: any = {
@@ -463,7 +310,7 @@ export default function WordDrill() {
       });
 
       constraints = [finalTargetCase, finalTargetDefiniteness, finalTargetPlurality];
-      
+
       const nounData = dbNounsRef.current.find(n => n.vocab_id === word.id && n.n_case === finalTargetCase);
       if (nounData) {
         const colMap: any = {
@@ -485,12 +332,12 @@ export default function WordDrill() {
       type: word.type,
       promptId,
       id: word.id,
-      interval:    word.interval    ?? 0,
+      interval: word.interval ?? 0,
       ease_factor: word.ease_factor ?? 2.5,
-      streak:      word.streak      ?? 0,
-      usefulness:  word.usefulness  ?? 5,
+      streak: word.streak ?? 0,
+      usefulness: word.usefulness ?? 5,
       mastery_score: word.mastery_score ?? 0.0,
-      
+
       targetTense: finalTargetTense,
       targetPronoun: finalTargetPronoun,
       targetCase: finalTargetCase,
@@ -503,11 +350,11 @@ export default function WordDrill() {
   const generatePrompt = () => {
     if (actionLock.current) return;
     actionLock.current = true;
-    
+
     setFeedback(null);
     setUserInput("");
     pickAndSetPrompt(filteredVocabRef.current);
-    
+
     setTimeout(() => {
       actionLock.current = false;
     }, 300);
@@ -559,7 +406,7 @@ export default function WordDrill() {
 
       if (masteryData) {
         grammarMasteryId = masteryData.id;
-        const newMastery = updateGlobalGrammarStat(masteryData.mastery_score, score, 5); 
+        const newMastery = updateGlobalGrammarStat(masteryData.mastery_score, score, 5);
         await supabase.from("grammar_mastery").update({ mastery_score: newMastery, last_seen: new Date().toISOString() }).eq("id", grammarMasteryId);
       } else {
         const { data: newData } = await supabase.from("grammar_mastery").insert({
@@ -595,22 +442,21 @@ export default function WordDrill() {
       }
     }
 
-    await supabase.from("review_logs").insert({ 
-      vocab_id: prompt.id, grammar_mastery_id: grammarMasteryId, score, created_at: new Date().toISOString() 
+    await supabase.from("review_logs").insert({
+      vocab_id: prompt.id, grammar_mastery_id: grammarMasteryId, score, created_at: new Date().toISOString()
     });
   }
 
   const handleCheck = () => {
-    // Absolutely block evaluation if there is already feedback or if we're locked
     if (!currentPrompt || actionLock.current || feedback) {
-      return; 
+      return;
     }
 
     actionLock.current = true;
 
     const finalInput = userInput.trim();
     const score = finalInput === "" ? 0.0 : evaluateAnswer(currentPrompt.expected, finalInput, grammarRules.rules.partial_credit_threshold);
-    
+
     setFeedback({ score, expected: currentPrompt.expected, promptId: currentPrompt.promptId });
     updateMastery(currentPrompt, score);
 
@@ -624,6 +470,22 @@ export default function WordDrill() {
     const baseWord = dbVocabRef.current.find(w => w.id === currentPrompt.id);
     if (baseWord) {
       setModalWord(baseWord);
+    }
+  };
+
+  const handleModalUpdate = (updatedWord: any) => {
+    setModalWord(updatedWord);
+
+    // Update local database refs so the drill uses the fixed strings
+    const idx = dbVocabRef.current.findIndex(w => w.id === updatedWord.id);
+    if (idx !== -1) dbVocabRef.current[idx] = { ...dbVocabRef.current[idx], ...updatedWord };
+
+    const fidx = filteredVocabRef.current.findIndex(w => w.id === updatedWord.id);
+    if (fidx !== -1) filteredVocabRef.current[fidx] = { ...filteredVocabRef.current[fidx], ...updatedWord };
+
+    // Dynamically update the current prompt's english if it was just edited
+    if (currentPrompt && currentPrompt.id === updatedWord.id) {
+      setCurrentPrompt((prev: any) => ({ ...prev, word: updatedWord.english }));
     }
   };
 
@@ -647,7 +509,7 @@ export default function WordDrill() {
         <div className="max-w-3xl w-full">
           <div className="flex items-center gap-4 mb-8">
             <Link href="/" className="text-white/40 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
             </Link>
             <div>
               <p className="text-xs uppercase tracking-widest text-indigo-400 font-semibold">Word Drill · SM-2</p>
@@ -662,13 +524,12 @@ export default function WordDrill() {
               return (
                 <button
                   key={filter.id} onClick={() => toggleFilter(filter.id)}
-                  className={`relative p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
-                    active ? `bg-gradient-to-br ${filter.color} border-transparent shadow-lg scale-[1.02]` : `bg-white/5 ${filter.border} hover:bg-white/10 hover:scale-[1.01]`
-                  }`}
+                  className={`relative p-4 rounded-2xl border-2 text-left transition-all duration-200 ${active ? `bg-gradient-to-br ${filter.color} border-transparent shadow-lg scale-[1.02]` : `bg-white/5 ${filter.border} hover:bg-white/10 hover:scale-[1.01]`
+                    }`}
                 >
                   {active && (
                     <div className="absolute top-2 right-2 w-5 h-5 bg-white/30 rounded-full flex items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                     </div>
                   )}
                   <span className="text-2xl mb-2 block">{filter.emoji}</span>
@@ -705,7 +566,7 @@ export default function WordDrill() {
             className="absolute left-0 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10"
             title="Back to Hub"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
           </Link>
           <p className="text-xs uppercase tracking-widest text-indigo-400 font-semibold mb-2">Drill Mode · SM-2</p>
           <h1 className="text-3xl font-bold tracking-tight">Translate</h1>
@@ -715,7 +576,7 @@ export default function WordDrill() {
           <div className="text-center py-10">
             <p className="text-4xl mb-4">🎉</p>
             <p className="text-xl font-bold text-emerald-400 mb-2">All caught up!</p>
-            <p className="text-white/50 text-sm mb-6">No words are due for review right now.<br/>Come back later when more are scheduled.</p>
+            <p className="text-white/50 text-sm mb-6">No words are due for review right now.<br />Come back later when more are scheduled.</p>
             <Link href="/" className="bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-6 rounded-xl transition-colors inline-block">
               ← Back to Hub
             </Link>
@@ -735,21 +596,20 @@ export default function WordDrill() {
               </div>
             </section>
 
-            {/* ONLY THE CHECK LOGIC LIVES IN THE FORM */}
-            <form 
-              onSubmit={(e) => { 
-                e.preventDefault(); 
-                handleCheck(); 
-              }} 
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleCheck();
+              }}
               className="flex flex-col gap-4"
             >
               <input
                 key={`input-${currentPrompt?.promptId}`}
-                type="text" 
-                value={userInput} 
+                type="text"
+                value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
                 ref={inputRef}
-                disabled={!!feedback} 
+                disabled={!!feedback}
                 autoComplete="off"
                 className="w-full bg-black/30 border border-white/10 focus:border-indigo-500 outline-none rounded-xl px-4 py-4 text-center text-xl transition-all disabled:opacity-50"
                 placeholder="Type your answer..."
@@ -762,22 +622,20 @@ export default function WordDrill() {
               )}
             </form>
 
-            {/* THE NEXT BUTTON IS NOW 100% OUTSIDE OF THE FORM */}
             {feedback && feedback.promptId === currentPrompt?.promptId && (
               <div className="mt-4 flex flex-col gap-4">
-                <button 
-                  type="button" 
-                  onClick={generatePrompt} 
+                <button
+                  type="button"
+                  onClick={generatePrompt}
                   className="w-full bg-white text-black font-bold py-4 rounded-xl transition-colors hover:bg-gray-100 active:scale-[0.98]"
                 >
                   Next Word (Press Enter)
                 </button>
 
-                <div className={`p-4 rounded-xl text-center font-medium animate-in fade-in slide-in-from-bottom-2 ${
-                  feedback.score === 1.0 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/20" :
-                  feedback.score > 0    ? "bg-amber-500/20  text-amber-400  border border-amber-500/20"  :
-                                          "bg-rose-500/20   text-rose-400   border border-rose-500/20"
-                }`}>
+                <div className={`p-4 rounded-xl text-center font-medium animate-in fade-in slide-in-from-bottom-2 ${feedback.score === 1.0 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/20" :
+                    feedback.score > 0 ? "bg-amber-500/20  text-amber-400  border border-amber-500/20" :
+                      "bg-rose-500/20   text-rose-400   border border-rose-500/20"
+                  }`}>
                   {feedback.score === 1.0 && <p className="text-lg">Perfect! ✓</p>}
                   {feedback.score > 0 && feedback.score < 1.0 && <p className="text-lg">Almost! ½</p>}
                   {feedback.score === 0.0 && <p className="text-lg">Incorrect!</p>}
@@ -786,13 +644,13 @@ export default function WordDrill() {
                       Expected: <span className="font-bold text-white">{feedback.expected}</span>
                     </p>
                   )}
-                  
-                  <button 
-                    type="button" 
+
+                  <button
+                    type="button"
                     onClick={openDictionaryForCurrentWord}
                     className="mt-4 flex items-center justify-center gap-2 mx-auto text-sm text-white/50 hover:text-white transition-colors hover:bg-white/5 px-3 py-1.5 rounded-lg"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
                     View Grammar Details
                   </button>
                 </div>
@@ -802,7 +660,11 @@ export default function WordDrill() {
         )}
       </div>
 
-      <DictionaryModal word={modalWord} onClose={() => setModalWord(null)} />
+      <DictionaryModal
+        word={modalWord}
+        onClose={() => setModalWord(null)}
+        onUpdate={handleModalUpdate}
+      />
 
     </main>
   );

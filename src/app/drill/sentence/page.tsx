@@ -3,13 +3,14 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { 
-  evaluateAnswer, 
-  scheduleSRS, 
+import {
+  evaluateAnswer,
+  scheduleSRS,
   pickDueWord,
   updateGlobalGrammarStat
 } from "@/lib/logic";
 import { createClient } from "@supabase/supabase-js";
+import DictionaryModal from "@/components/DictionaryModal";
 
 const getSupabase = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -18,158 +19,10 @@ const getSupabase = () => {
   return createClient(url, key);
 };
 
-// ────────────────────────────────────────────────────────────────
-// UI Component: Interactive Dictionary Modal
-// ────────────────────────────────────────────────────────────────
-const DictionaryModal = ({ word, onClose }: { word: any | null; onClose: () => void }) => {
-  const [grammarData, setGrammarData] = useState<any[] | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!word) return;
-    
-    const fetchGrammar = async () => {
-      setLoading(true);
-      const supabase = getSupabase();
-      if (!supabase) return;
-
-      try {
-        if (word.type === "Verb" || word.type === "Command") {
-          const { data } = await supabase.from('conjugations').select('*').eq('vocab_id', word.id);
-          setGrammarData(data || []);
-        } else if (word.type === "Adjective") {
-          const { data } = await supabase.from('adjective_agreements').select('*').eq('vocab_id', word.id);
-          setGrammarData(data || []);
-        } else if (word.type?.startsWith("Noun")) {
-          const { data } = await supabase.from('noun_declensions').select('*').eq('vocab_id', word.id);
-          setGrammarData(data || []);
-        } else {
-          setGrammarData([]); 
-        }
-      } catch (err) {
-        console.error("Failed to fetch grammar details", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchGrammar();
-  }, [word]);
-
-  if (!word) return null;
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="glassmorphism w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border border-white/10 shadow-2xl relative text-left">
-        <button 
-          onClick={onClose} 
-          className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors p-2 bg-white/5 hover:bg-white/10 rounded-full"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
-
-        <div className="p-6 md:p-8">
-          <div className="mb-6">
-            <span className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-1 block">
-              {word.type || "Uncategorized"}
-            </span>
-            <h2 className="text-3xl font-black text-white">{word.albanian}</h2>
-            <p className="text-lg text-white/60 mt-1">{word.english}</p>
-          </div>
-
-          <div className="border-t border-white/10 pt-6">
-            {loading ? (
-              <div className="flex flex-col items-center justify-center py-10 opacity-50">
-                 <div className="w-6 h-6 border-2 border-white/20 border-t-indigo-400 rounded-full animate-spin mb-2"></div>
-                 <p className="text-sm">Fetching grammar matrices...</p>
-              </div>
-            ) : grammarData && grammarData.length > 0 ? (
-              word.type === "Verb" || word.type === "Command" ? (
-                <div className="space-y-6">
-                  {grammarData.map((conj, idx) => (
-                    <div key={idx} className="bg-black/30 rounded-xl border border-white/5 overflow-hidden">
-                      <div className="bg-white/5 px-4 py-2 border-b border-white/5 font-semibold text-sm text-indigo-300">
-                        {conj.mood_tense?.replace(/_/g, ' ')?.toUpperCase() || "UNKNOWN TENSE"}
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2 p-4 text-sm">
-                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Unë</span> <span className="font-medium">{conj.une || "—"}</span></div>
-                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ti</span> <span className="font-medium">{conj.ti || "—"}</span></div>
-                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ai/Ajo</span> <span className="font-medium">{conj.ai_ajo || "—"}</span></div>
-                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ne</span> <span className="font-medium">{conj.ne || "—"}</span></div>
-                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ju</span> <span className="font-medium">{conj.ju || "—"}</span></div>
-                        <div className="flex justify-between md:block"><span className="text-white/40 mr-2 md:block md:mb-1">Ata/Ato</span> <span className="font-medium">{conj.ata_ato || "—"}</span></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : 
-              word.type?.startsWith("Noun") ? (
-                <div className="space-y-6">
-                  {grammarData.map((decl, idx) => (
-                    <div key={idx} className="bg-black/30 rounded-xl border border-white/5 overflow-hidden">
-                      <div className="bg-white/5 px-4 py-2 border-b border-white/5 font-semibold text-sm text-sky-300">
-                        {decl.n_case?.toUpperCase() || "UNKNOWN CASE"}
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 text-sm">
-                        <div className="space-y-2">
-                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold">Singular</div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef.</span> <span className="font-medium">{decl.indef_sg || "—"}</span></div>
-                           <div className="flex justify-between"><span className="text-white/50">Def.</span> <span className="font-medium">{decl.def_sg || "—"}</span></div>
-                        </div>
-                        <div className="space-y-2">
-                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold mt-4 md:mt-0">Plural</div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef.</span> <span className="font-medium">{decl.indef_pl || "—"}</span></div>
-                           <div className="flex justify-between"><span className="text-white/50">Def.</span> <span className="font-medium">{decl.def_pl || "—"}</span></div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : 
-              word.type === "Adjective" ? (
-                <div className="space-y-6">
-                  {grammarData.map((agr, idx) => (
-                    <div key={idx} className="bg-black/30 rounded-xl border border-white/5 overflow-hidden">
-                      <div className="bg-white/5 px-4 py-2 border-b border-white/5 font-semibold text-sm text-emerald-300">
-                        {agr.adj_case?.toUpperCase() || "UNKNOWN CASE"}
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 text-sm">
-                         <div className="space-y-2">
-                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold">Singular</div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Masc.</span> <span className="font-medium">{agr.indef_masc_sg || "—"}</span></div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Def. Masc.</span> <span className="font-medium">{agr.def_masc_sg || "—"}</span></div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Fem.</span> <span className="font-medium">{agr.indef_fem_sg || "—"}</span></div>
-                           <div className="flex justify-between"><span className="text-white/50">Def. Fem.</span> <span className="font-medium">{agr.def_fem_sg || "—"}</span></div>
-                        </div>
-                        <div className="space-y-2">
-                           <div className="text-xs text-white/30 uppercase tracking-widest font-bold mt-4 md:mt-0">Plural</div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Masc.</span> <span className="font-medium">{agr.indef_masc_pl || "—"}</span></div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Def. Masc.</span> <span className="font-medium">{agr.def_masc_pl || "—"}</span></div>
-                           <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Indef. Fem.</span> <span className="font-medium">{agr.indef_fem_pl || "—"}</span></div>
-                           <div className="flex justify-between"><span className="text-white/50">Def. Fem.</span> <span className="font-medium">{agr.def_fem_pl || "—"}</span></div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null
-            ) : (
-              <div className="text-center py-8 text-white/40">
-                <p>No grammar matrices needed or available for this word.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-
 export default function SentenceDrill() {
   const router = useRouter();
   const [phase, setPhase] = useState<"loading" | "setup" | "drill">("loading");
-  
+
   const [currentPrompt, setCurrentPrompt] = useState<any>(null);
   const [caughtUp, setCaughtUp] = useState(false);
   const [userInput, setUserInput] = useState("");
@@ -178,9 +31,9 @@ export default function SentenceDrill() {
     expected: string;
     promptId: string;
   } | null>(null);
-  
+
   const [modalWord, setModalWord] = useState<any | null>(null);
-  
+
   const [dbVocab, setDbVocab] = useState<any[]>([]);
   const dbVocabRef = useRef<any[]>([]);
 
@@ -201,7 +54,7 @@ export default function SentenceDrill() {
     setPhase("loading");
     const supabase = getSupabase();
     if (!supabase) { setPhase("setup"); return; }
-    
+
     // Fetch global metrics
     const { data: metricsData } = await supabase.from("grammar_metrics").select("*");
     if (metricsData) {
@@ -214,7 +67,7 @@ export default function SentenceDrill() {
       .from("vocab")
       .select("*, sentences(id, blanked_albanian, target_albanian, target_english, english_translation, grammar_type, grammar_value)")
       .not('sentences', 'is', null);
-      
+
     if (vocabData) {
       const validVocab = vocabData.filter(v => v.sentences && v.sentences.length > 0);
       dbVocabRef.current = validVocab;
@@ -229,7 +82,7 @@ export default function SentenceDrill() {
     try {
       const res = await fetch('/api/generate-sentences', { method: 'POST' });
       const data = await res.json();
-      
+
       if (res.ok) {
         alert(data.message || "Sentences generated successfully!");
         await loadData();
@@ -247,7 +100,7 @@ export default function SentenceDrill() {
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && feedback && currentPrompt && feedback.promptId === currentPrompt.promptId && !modalWord) {
-        e.preventDefault(); 
+        e.preventDefault();
         generatePrompt();
       }
     };
@@ -255,7 +108,7 @@ export default function SentenceDrill() {
     if (phase === "drill") {
       window.addEventListener('keydown', handleGlobalKeyDown);
     }
-    
+
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [feedback, currentPrompt, phase, modalWord]);
 
@@ -281,7 +134,7 @@ export default function SentenceDrill() {
     }
 
     setCaughtUp(false);
-    
+
     const sentences = word.sentences;
     const randomSentence = sentences[Math.floor(Math.random() * sentences.length)];
 
@@ -296,12 +149,12 @@ export default function SentenceDrill() {
       grammar_type: randomSentence.grammar_type,
       grammar_value: randomSentence.grammar_value,
       type: word.type,
-      
+
       // SRS Data
-      interval:    word.interval    ?? 0,
+      interval: word.interval ?? 0,
       ease_factor: word.ease_factor ?? 2.5,
-      streak:      word.streak      ?? 0,
-      usefulness:  word.usefulness  ?? 5,
+      streak: word.streak ?? 0,
+      usefulness: word.usefulness ?? 5,
       mastery_score: word.mastery_score ?? 0.0,
     });
   }
@@ -348,7 +201,7 @@ export default function SentenceDrill() {
     if (prompt.grammar_type && prompt.grammar_value) {
       const gType = prompt.grammar_type;
       const gValue = prompt.grammar_value;
-      
+
       const updateMetric = async (dType: string, dValue: string) => {
         const oldStat = grammarMetricsRef.current.find(m => m.dimension_type === dType && m.dimension_value === dValue);
         if (oldStat) {
@@ -367,7 +220,7 @@ export default function SentenceDrill() {
 
       if (masteryData) {
         grammarMasteryId = masteryData.id;
-        const newMastery = updateGlobalGrammarStat(masteryData.mastery_score, score, 5); 
+        const newMastery = updateGlobalGrammarStat(masteryData.mastery_score, score, 5);
         await supabase.from("grammar_mastery").update({ mastery_score: newMastery, last_seen: new Date().toISOString() }).eq("id", grammarMasteryId);
       } else {
         const { data: newData } = await supabase.from("grammar_mastery").insert({
@@ -395,24 +248,24 @@ export default function SentenceDrill() {
     }
 
     // 3. Log the review event
-    await supabase.from("review_logs").insert({ 
-      vocab_id: prompt.vocab_id, 
+    await supabase.from("review_logs").insert({
+      vocab_id: prompt.vocab_id,
       grammar_mastery_id: grammarMasteryId,
-      score, 
-      created_at: new Date().toISOString() 
+      score,
+      created_at: new Date().toISOString()
     });
   }
 
   const handleCheck = () => {
     if (!currentPrompt || actionLock.current || feedback) {
-      return; 
+      return;
     }
 
     actionLock.current = true;
-    
+
     const finalInput = userInput.trim();
     const score = finalInput === "" ? 0.0 : evaluateAnswer(currentPrompt.expected, finalInput, 0.8);
-    
+
     setFeedback({ score, expected: currentPrompt.expected, promptId: currentPrompt.promptId });
     updateMastery(currentPrompt, score);
 
@@ -427,6 +280,14 @@ export default function SentenceDrill() {
     if (baseWord) {
       setModalWord(baseWord);
     }
+  };
+
+  const handleModalUpdate = (updatedWord: any) => {
+    setModalWord(updatedWord);
+
+    // Update local database ref so the drill uses the fixed string
+    const idx = dbVocabRef.current.findIndex(w => w.id === updatedWord.id);
+    if (idx !== -1) dbVocabRef.current[idx] = { ...dbVocabRef.current[idx], ...updatedWord };
   };
 
   const renderSentence = (text: string) => {
@@ -460,7 +321,7 @@ export default function SentenceDrill() {
         <div className="max-w-3xl w-full">
           <div className="flex items-center gap-4 mb-8">
             <Link href="/" className="text-white/40 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
             </Link>
             <div>
               <p className="text-xs uppercase tracking-widest text-emerald-400 font-semibold">Context Drill · SM-2</p>
@@ -471,7 +332,7 @@ export default function SentenceDrill() {
           <div className="glassmorphism p-8 rounded-2xl border border-white/10 text-center mb-8">
             <h2 className="text-4xl font-black mb-2">{dbVocabRef.current.length}</h2>
             <p className="text-white/50 mb-6">Words with available sentences</p>
-            
+
             <p className="text-emerald-400 font-medium mb-6">
               {dueCount > 0 ? `${dueCount} ready for review right now.` : `No sentences currently due.`}
             </p>
@@ -484,19 +345,19 @@ export default function SentenceDrill() {
                 {dueCount > 0 ? `Start Context Drill` : "Start Context Drill"}
               </button>
 
-              <button 
+              <button
                 onClick={handleGenerateSentences}
                 disabled={isGenerating}
                 className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-4 rounded-xl transition-colors flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50 text-sm"
               >
                 {isGenerating ? (
                   <div className="flex items-center gap-2">
-                     <div className="w-4 h-4 border-2 border-white/20 border-t-emerald-400 rounded-full animate-spin"></div>
-                     Generating...
+                    <div className="w-4 h-4 border-2 border-white/20 border-t-emerald-400 rounded-full animate-spin"></div>
+                    Generating...
                   </div>
                 ) : (
                   <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" className="text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" className="text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /><path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" /></svg>
                     Generate More Sentences
                   </>
                 )}
@@ -519,7 +380,7 @@ export default function SentenceDrill() {
             className="absolute left-0 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10"
             title="Back to Hub"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
           </Link>
           <p className="text-xs uppercase tracking-widest text-emerald-400 font-semibold mb-2">Context Drill</p>
           <h1 className="text-3xl font-bold tracking-tight">Fill the Blank</h1>
@@ -530,19 +391,19 @@ export default function SentenceDrill() {
             <p className="text-4xl mb-4">🎉</p>
             <p className="text-xl font-bold text-emerald-400 mb-2">All caught up!</p>
             <p className="text-white/50 text-sm mb-8">You've completed all available context drills.</p>
-            
+
             <div className="flex flex-col gap-4 max-w-xs mx-auto">
-              <button 
-                  onClick={handleGenerateSentences}
-                  disabled={isGenerating}
-                  className="w-full bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 font-medium py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
-                >
-                  {isGenerating ? (
-                    <div className="w-5 h-5 border-2 border-emerald-400/20 border-t-emerald-400 rounded-full animate-spin"></div>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-                  )}
-                  {isGenerating ? "Generating..." : "Generate AI Sentences"}
+              <button
+                onClick={handleGenerateSentences}
+                disabled={isGenerating}
+                className="w-full bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 font-medium py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+              >
+                {isGenerating ? (
+                  <div className="w-5 h-5 border-2 border-emerald-400/20 border-t-emerald-400 rounded-full animate-spin"></div>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /></svg>
+                )}
+                {isGenerating ? "Generating..." : "Generate AI Sentences"}
               </button>
 
               <Link href="/" className="bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-6 rounded-xl transition-colors inline-block w-full">
@@ -558,18 +419,18 @@ export default function SentenceDrill() {
               <h2 className="text-2xl sm:text-3xl font-medium text-white/90 mb-8 leading-tight drop-shadow-md">
                 "{renderSentence(currentPrompt.blanked_albanian)}"
               </h2>
-              
+
               <div className="bg-white/5 border border-white/10 rounded-xl py-3 px-6 inline-block mx-auto">
                 <span className="text-white/50 text-sm uppercase tracking-widest block mb-1">Target Word</span>
                 <span className="text-emerald-400 font-bold text-xl">{currentPrompt.target_english}</span>
               </div>
             </section>
 
-            <form 
-              onSubmit={(e) => { 
-                e.preventDefault(); 
-                handleCheck(); 
-              }} 
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleCheck();
+              }}
               className="flex flex-col gap-4"
             >
               <input
@@ -590,23 +451,22 @@ export default function SentenceDrill() {
 
             {feedback && feedback.promptId === currentPrompt?.promptId && (
               <div className="mt-4 flex flex-col gap-4">
-                <button 
-                  type="button" 
-                  onClick={generatePrompt} 
+                <button
+                  type="button"
+                  onClick={generatePrompt}
                   className="w-full bg-white text-black font-bold py-4 rounded-xl transition-colors hover:bg-gray-100 active:scale-[0.98]"
                 >
                   Next Sentence (Press Enter)
                 </button>
-                
-                <div className={`p-6 rounded-xl text-center font-medium animate-in fade-in slide-in-from-bottom-2 ${
-                  feedback.score === 1.0 ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20" :
-                  feedback.score > 0    ? "bg-amber-500/10  text-amber-300  border border-amber-500/20"  :
-                                          "bg-rose-500/10   text-rose-300   border border-rose-500/20"
-                }`}>
+
+                <div className={`p-6 rounded-xl text-center font-medium animate-in fade-in slide-in-from-bottom-2 ${feedback.score === 1.0 ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20" :
+                  feedback.score > 0 ? "bg-amber-500/10  text-amber-300  border border-amber-500/20" :
+                    "bg-rose-500/10   text-rose-300   border border-rose-500/20"
+                  }`}>
                   {feedback.score === 1.0 && <p className="text-lg font-bold mb-2">Perfect! ✓</p>}
                   {feedback.score > 0 && feedback.score < 1.0 && <p className="text-lg font-bold mb-2">Almost! ½</p>}
                   {feedback.score === 0.0 && <p className="text-lg font-bold mb-2">Incorrect!</p>}
-                  
+
                   {feedback.score < 1.0 && (
                     <p className="mt-2 text-base text-white/80">
                       The missing word was: <span className="font-bold text-white">{feedback.expected}</span>
@@ -619,19 +479,19 @@ export default function SentenceDrill() {
                       <p className="text-white font-medium italic">"{currentPrompt.english_translation}"</p>
                     </div>
                     {currentPrompt.grammar_type && (
-                       <div className="bg-black/30 rounded px-3 py-2 inline-block mx-auto border border-white/5">
-                         <span className="text-white/40 uppercase tracking-wider text-[10px] block">Grammar Exercised</span>
-                         <span className="text-emerald-400 text-xs font-mono">{currentPrompt.grammar_type}: {currentPrompt.grammar_value}</span>
-                       </div>
+                      <div className="bg-black/30 rounded px-3 py-2 inline-block mx-auto border border-white/5">
+                        <span className="text-white/40 uppercase tracking-wider text-[10px] block">Grammar Exercised</span>
+                        <span className="text-emerald-400 text-xs font-mono">{currentPrompt.grammar_type}: {currentPrompt.grammar_value}</span>
+                      </div>
                     )}
                   </div>
-                  
-                  <button 
-                    type="button" 
+
+                  <button
+                    type="button"
                     onClick={openDictionaryForCurrentWord}
                     className="mt-5 flex items-center justify-center gap-2 mx-auto text-sm text-white/50 hover:text-white transition-colors hover:bg-white/5 px-3 py-1.5 rounded-lg"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
                     View Grammar Details
                   </button>
                 </div>
@@ -641,7 +501,11 @@ export default function SentenceDrill() {
         )}
       </div>
 
-      <DictionaryModal word={modalWord} onClose={() => setModalWord(null)} />
+      <DictionaryModal
+        word={modalWord}
+        onClose={() => setModalWord(null)}
+        onUpdate={handleModalUpdate}
+      />
 
     </main>
   );
