@@ -64,7 +64,7 @@ export default function DictionaryModal({ word, onClose, onUpdate }: { word: any
     }, [word]);
 
     const handleSave = async () => {
-        if (!word) return;
+        if (!word || isSaving) return;
         setIsSaving(true);
         const supabase = getSupabase();
         if (!supabase) return;
@@ -118,6 +118,21 @@ export default function DictionaryModal({ word, onClose, onUpdate }: { word: any
         fetchGrammar();
     };
 
+    // Close when clicking the dark backdrop outside the modal (if not editing)
+    const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (e.target === e.currentTarget && !isEditing) {
+            onClose();
+        }
+    };
+
+    // Save when Cmd+Enter or Ctrl+Enter is pressed
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (isEditing && (e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            e.preventDefault();
+            handleSave();
+        }
+    };
+
     // Helper function to render a grammar cell (switches to an input when editing)
     const renderCell = (label: string, value: string, field: string, idx: number) => (
         <div className="flex items-center justify-between md:block gap-2">
@@ -143,8 +158,14 @@ export default function DictionaryModal({ word, onClose, onUpdate }: { word: any
     if (!word) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="glassmorphism w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl border border-white/10 shadow-2xl relative text-left">
+        <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={handleBackdropClick}
+        >
+            <div
+                className="glassmorphism w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl border border-white/10 shadow-2xl relative text-left"
+                onKeyDown={handleKeyDown}
+            >
 
                 <div className="absolute top-4 right-4 flex gap-2 z-10">
                     {!isEditing && (
@@ -197,14 +218,14 @@ export default function DictionaryModal({ word, onClose, onUpdate }: { word: any
                                         className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-lg text-white/60 outline-none focus:border-indigo-500 transition-colors"
                                     />
                                 </div>
-                                <div className="flex gap-3 pt-2">
+                                <div className="flex flex-wrap gap-3 pt-2">
                                     <button
                                         onClick={handleSave}
                                         disabled={isSaving}
                                         className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-2 px-6 rounded-lg transition-colors shadow-lg shadow-indigo-500/20 active:scale-95 disabled:opacity-50 flex items-center gap-2"
                                     >
                                         {isSaving ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : null}
-                                        {isSaving ? "Saving..." : "Save All Changes"}
+                                        {isSaving ? "Saving..." : "Save (Cmd+Enter)"}
                                     </button>
                                     <button
                                         onClick={handleCancel}

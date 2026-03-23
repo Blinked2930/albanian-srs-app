@@ -62,10 +62,10 @@ export default function SentenceDrill() {
       setGrammarMetrics(metricsData);
     }
 
-    // Fetch sentences with grammar tracking fields
+    // Fetch sentences WITH the newly added SM-2 tracking fields
     const { data: vocabData } = await supabase
       .from("vocab")
-      .select("*, sentences(id, blanked_albanian, target_albanian, target_english, english_translation, grammar_type, grammar_value)")
+      .select("*, sentences(id, blanked_albanian, target_albanian, target_english, english_translation, grammar_type, grammar_value, next_review, interval, ease_factor, streak, usefulness, mastery_score, confidence)")
       .not('sentences', 'is', null);
 
     if (vocabData) {
@@ -141,6 +141,7 @@ export default function SentenceDrill() {
     const promptId = Math.random().toString(36).slice(2);
     setCurrentPrompt({
       vocab_id: word.id,
+      sentence_id: randomSentence.id, // Explicitly grab the sentence ID
       promptId,
       blanked_albanian: randomSentence.blanked_albanian,
       target_english: randomSentence.target_english,
@@ -150,7 +151,7 @@ export default function SentenceDrill() {
       grammar_value: randomSentence.grammar_value,
       type: word.type,
 
-      // SRS Data
+      // SRS Data (Using the word's baseline so they stay synced)
       interval: word.interval ?? 0,
       ease_factor: word.ease_factor ?? 2.5,
       streak: word.streak ?? 0,
@@ -173,87 +174,102 @@ export default function SentenceDrill() {
   };
 
   async function updateMastery(prompt: any, score: number) {
-    const supabase = getSupabase();
-    if (!supabase) return;
+    try {
+      const supabase = getSupabase();
+      if (!supabase) throw new Error("Supabase client not initialized");
 
-    // 1. Update Core Vocab SRS
-    const schedule = scheduleSRS(score, prompt.interval, prompt.ease_factor, prompt.streak, prompt.usefulness);
-    const updatedValues = {
-      next_review: schedule.nextReview,
-      interval: schedule.newInterval,
-      ease_factor: schedule.newEaseFactor,
-      streak: schedule.newStreak,
-      mastery_score: schedule.newMastery,
-      confidence: schedule.newConfidence,
-      last_seen: new Date().toISOString()
-    };
-
-    await supabase.from("vocab").update(updatedValues).eq("id", prompt.vocab_id);
-
-    const idx = dbVocabRef.current.findIndex((w: any) => w.id === prompt.vocab_id);
-    if (idx !== -1) {
-      dbVocabRef.current[idx] = { ...dbVocabRef.current[idx], ...updatedValues };
-    }
-
-    // 2. Parse AI Grammar String & Distribute Global Grammar Updates
-    let grammarMasteryId = null;
-
-    if (prompt.grammar_type && prompt.grammar_value) {
-      const gType = prompt.grammar_type;
-      const gValue = prompt.grammar_value;
-
-      const updateMetric = async (dType: string, dValue: string) => {
-        const oldStat = grammarMetricsRef.current.find(m => m.dimension_type === dType && m.dimension_value === dValue);
-        if (oldStat) {
-          const newScore = updateGlobalGrammarStat(oldStat.mastery_score, score, oldStat.total_reviews);
-          oldStat.mastery_score = newScore;
-          oldStat.total_reviews += 1;
-          await supabase.from("grammar_metrics").update({
-            mastery_score: newScore, total_reviews: oldStat.total_reviews, updated_at: new Date().toISOString()
-          }).eq("id", oldStat.id);
-        }
+      // 1. Calculate unified SRS schedule
+      const schedule = scheduleSRS(score, prompt.interval, prompt.ease_factor, prompt.streak, prompt.usefulness);
+      const updatedValues = {
+        next_review: schedule.nextReview,
+        interval: schedule.newInterval,
+        ease_factor: schedule.newEaseFactor,
+        streak: schedule.newStreak,
+        mastery_score: schedule.newMastery,
+        confidence: schedule.newConfidence,
+        last_seen: new Date().toISOString()
       };
 
-      // Word-specific grammar mastery
-      let { data: masteryData } = await supabase.from("grammar_mastery")
-        .select("id, mastery_score").eq("vocab_id", prompt.vocab_id).eq("grammar_type", gType).eq("grammar_value", gValue).single();
+      // 2. Update Vocab Table
+      const { error: vocabErr } = await supabase.from("vocab").update(updatedValues).eq("id", prompt.vocab_id);
+      if (vocabErr) console.error("Vocab update failed:", vocabErr);
 
-      if (masteryData) {
-        grammarMasteryId = masteryData.id;
-        const newMastery = updateGlobalGrammarStat(masteryData.mastery_score, score, 5);
-        await supabase.from("grammar_mastery").update({ mastery_score: newMastery, last_seen: new Date().toISOString() }).eq("id", grammarMasteryId);
-      } else {
-        const { data: newData } = await supabase.from("grammar_mastery").insert({
-          vocab_id: prompt.vocab_id, grammar_type: gType, grammar_value: gValue, mastery_score: score, last_seen: new Date().toISOString()
-        }).select("id").single();
-        if (newData) grammarMasteryId = newData.id;
+      const idx = dbVocabRef.current.findIndex((w: any) => w.id === prompt.vocab_id);
+      if (idx !== -1) {
+        dbVocabRef.current[idx] = { ...dbVocabRef.current[idx], ...updatedValues };
       }
 
-      // Splitting logic for multidimensional global tracking
-      if (gType === "conjugation") {
-        const [tense, pronoun] = gValue.split(":");
-        if (tense && tense !== "participle") await updateMetric("tense", tense);
-        if (tense === "participle") await updateMetric("tense", "participle");
-        if (pronoun) await updateMetric("pronoun", pronoun);
-      } else if (gType === "noun_declension") {
-        const [n_case, definiteness, plurality] = gValue.split(":");
-        if (n_case) await updateMetric("noun_case", n_case);
-        if (definiteness) await updateMetric("noun_definiteness", definiteness);
-        if (plurality) await updateMetric("noun_plurality", plurality);
-      } else if (gType === "adjective_agreement") {
-        const [gender, plurality] = gValue.split(":");
-        if (gender) await updateMetric("adjective_gender", gender);
-        if (plurality) await updateMetric("adjective_plurality", plurality);
+      // 3. Update Sentences Table simultaneously 
+      const { error: sentErr } = await supabase.from("sentences").update(updatedValues).eq("id", prompt.sentence_id);
+      if (sentErr) console.error("Sentence update failed:", sentErr);
+
+      // 4. Parse AI Grammar String & Distribute Global Grammar Updates
+      let grammarMasteryId = null;
+
+      if (prompt.grammar_type && prompt.grammar_value) {
+        const gType = prompt.grammar_type;
+        const gValue = prompt.grammar_value;
+
+        const updateMetric = async (dType: string, dValue: string) => {
+          const oldStat = grammarMetricsRef.current.find(m => m.dimension_type === dType && m.dimension_value === dValue);
+          if (oldStat) {
+            const newScore = updateGlobalGrammarStat(oldStat.mastery_score, score, oldStat.total_reviews);
+            oldStat.mastery_score = newScore;
+            oldStat.total_reviews += 1;
+            const { error: metricErr } = await supabase.from("grammar_metrics").update({
+              mastery_score: newScore, total_reviews: oldStat.total_reviews, updated_at: new Date().toISOString()
+            }).eq("id", oldStat.id);
+            if (metricErr) console.error(`Grammar metric update failed for ${dType}:`, metricErr);
+          }
+        };
+
+        // Word-specific grammar mastery
+        let { data: masteryData } = await supabase.from("grammar_mastery")
+          .select("id, mastery_score").eq("vocab_id", prompt.vocab_id).eq("grammar_type", gType).eq("grammar_value", gValue).single();
+
+        if (masteryData) {
+          grammarMasteryId = masteryData.id;
+          const newMastery = updateGlobalGrammarStat(masteryData.mastery_score, score, 5);
+          const { error: specErr } = await supabase.from("grammar_mastery").update({ mastery_score: newMastery, last_seen: new Date().toISOString() }).eq("id", grammarMasteryId);
+          if (specErr) console.error("Specific grammar mastery update failed:", specErr);
+        } else {
+          const { data: newData, error: newSpecErr } = await supabase.from("grammar_mastery").insert({
+            vocab_id: prompt.vocab_id, grammar_type: gType, grammar_value: gValue, mastery_score: score, last_seen: new Date().toISOString()
+          }).select("id").single();
+          if (newSpecErr) console.error("Failed to insert new specific grammar mastery:", newSpecErr);
+          if (newData) grammarMasteryId = newData.id;
+        }
+
+        // Splitting logic for multidimensional global tracking
+        if (gType === "conjugation") {
+          const [tense, pronoun] = gValue.split(":");
+          if (tense && tense !== "participle") await updateMetric("tense", tense);
+          if (tense === "participle") await updateMetric("tense", "participle");
+          if (pronoun) await updateMetric("pronoun", pronoun);
+        } else if (gType === "noun_declension") {
+          const [n_case, definiteness, plurality] = gValue.split(":");
+          if (n_case) await updateMetric("noun_case", n_case);
+          if (definiteness) await updateMetric("noun_definiteness", definiteness);
+          if (plurality) await updateMetric("noun_plurality", plurality);
+        } else if (gType === "adjective_agreement") {
+          const [gender, plurality] = gValue.split(":");
+          if (gender) await updateMetric("adjective_gender", gender);
+          if (plurality) await updateMetric("adjective_plurality", plurality);
+        }
       }
+
+      // 5. Log the review event
+      const { error: logErr } = await supabase.from("review_logs").insert({
+        vocab_id: prompt.vocab_id,
+        grammar_mastery_id: grammarMasteryId,
+        score,
+        created_at: new Date().toISOString()
+      });
+      if (logErr) console.error("Review log insertion failed:", logErr);
+
+    } catch (err) {
+      console.error("Critical failure executing updateMastery database calls:", err);
     }
-
-    // 3. Log the review event
-    await supabase.from("review_logs").insert({
-      vocab_id: prompt.vocab_id,
-      grammar_mastery_id: grammarMasteryId,
-      score,
-      created_at: new Date().toISOString()
-    });
   }
 
   const handleCheck = () => {
@@ -460,8 +476,8 @@ export default function SentenceDrill() {
                 </button>
 
                 <div className={`p-6 rounded-xl text-center font-medium animate-in fade-in slide-in-from-bottom-2 ${feedback.score === 1.0 ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20" :
-                  feedback.score > 0 ? "bg-amber-500/10  text-amber-300  border border-amber-500/20" :
-                    "bg-rose-500/10   text-rose-300   border border-rose-500/20"
+                    feedback.score > 0 ? "bg-amber-500/10  text-amber-300  border border-amber-500/20" :
+                      "bg-rose-500/10   text-rose-300   border border-rose-500/20"
                   }`}>
                   {feedback.score === 1.0 && <p className="text-lg font-bold mb-2">Perfect! ✓</p>}
                   {feedback.score > 0 && feedback.score < 1.0 && <p className="text-lg font-bold mb-2">Almost! ½</p>}
