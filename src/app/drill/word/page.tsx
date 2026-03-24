@@ -97,6 +97,8 @@ export default function WordDrill() {
   } | null>(null);
 
   const [modalWord, setModalWord] = useState<any | null>(null);
+  const [mnemonic, setMnemonic] = useState<string | null>(null);
+  const [isGeneratingMnemonic, setIsGeneratingMnemonic] = useState(false);
 
   const [dbVocab, setDbVocab] = useState<any[]>([]);
   const dbVocabRef = useRef<any[]>([]);
@@ -353,11 +355,39 @@ export default function WordDrill() {
 
     setFeedback(null);
     setUserInput("");
+    setMnemonic(null); // Reset mnemonic state
     pickAndSetPrompt(filteredVocabRef.current);
 
     setTimeout(() => {
       actionLock.current = false;
     }, 300);
+  };
+
+  const handleGenerateMnemonic = async () => {
+    if (!currentPrompt) return;
+    setIsGeneratingMnemonic(true);
+    setMnemonic(null);
+
+    try {
+      const res = await fetch('/api/generate-mnemonic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          albanian: currentPrompt.expected,
+          english: currentPrompt.word
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMnemonic(data.mnemonic);
+      } else {
+        alert("Failed to generate mnemonic.");
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsGeneratingMnemonic(false);
+    }
   };
 
   async function updateMastery(prompt: any, score: number) {
@@ -617,7 +647,7 @@ export default function WordDrill() {
 
               {!feedback && (
                 <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-indigo-500/20 active:scale-[0.98]">
-                  Check
+                  {userInput.trim() === "" ? "I don't know (Show Answer)" : "Check"}
                 </button>
               )}
             </form>
@@ -633,8 +663,8 @@ export default function WordDrill() {
                 </button>
 
                 <div className={`p-4 rounded-xl text-center font-medium animate-in fade-in slide-in-from-bottom-2 ${feedback.score === 1.0 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/20" :
-                    feedback.score > 0 ? "bg-amber-500/20  text-amber-400  border border-amber-500/20" :
-                      "bg-rose-500/20   text-rose-400   border border-rose-500/20"
+                  feedback.score > 0 ? "bg-amber-500/20  text-amber-400  border border-amber-500/20" :
+                    "bg-rose-500/20   text-rose-400   border border-rose-500/20"
                   }`}>
                   {feedback.score === 1.0 && <p className="text-lg">Perfect! ✓</p>}
                   {feedback.score > 0 && feedback.score < 1.0 && <p className="text-lg">Almost! ½</p>}
@@ -644,6 +674,40 @@ export default function WordDrill() {
                       Expected: <span className="font-bold text-white">{feedback.expected}</span>
                     </p>
                   )}
+
+                  {/* Mnemonic Creation Section */}
+                  <div className="mt-4 pt-4 border-t border-white/10 text-sm">
+                    {!mnemonic && !isGeneratingMnemonic && (
+                      <button
+                        type="button"
+                        onClick={handleGenerateMnemonic}
+                        className="flex items-center justify-center gap-2 mx-auto text-indigo-400 hover:text-indigo-300 transition-colors font-medium bg-indigo-500/10 hover:bg-indigo-500/20 px-4 py-2 rounded-lg"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" /></svg>
+                        Create Mnemonic
+                      </button>
+                    )}
+
+                    {isGeneratingMnemonic && (
+                      <div className="flex items-center justify-center gap-2 text-white/50 py-2">
+                        <div className="w-4 h-4 border-2 border-white/20 border-t-indigo-400 rounded-full animate-spin"></div>
+                        Generating hook...
+                      </div>
+                    )}
+
+                    {mnemonic && (
+                      <div className="bg-black/40 border border-indigo-500/20 rounded-xl p-4 text-left animate-in fade-in slide-in-from-bottom-2">
+                        <div className="flex items-center gap-2 mb-2 text-indigo-400 font-semibold border-b border-indigo-500/20 pb-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" /><path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /></svg>
+                          Memory Hook
+                        </div>
+                        <div
+                          className="text-white/90 prose prose-invert prose-sm max-w-none leading-relaxed"
+                          dangerouslySetInnerHTML={{ __html: mnemonic.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-300">$1</strong>') }}
+                        />
+                      </div>
+                    )}
+                  </div>
 
                   <button
                     type="button"
