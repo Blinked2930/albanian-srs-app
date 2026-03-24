@@ -30,6 +30,24 @@ export default function DictionaryModal({ word, onClose, onUpdate }: { word: any
         try {
             if (word.type === "Verb" || word.type === "Command") {
                 const { data } = await supabase.from('conjugations').select('*').eq('vocab_id', word.id);
+                if (data) {
+                    const verbTenseOrder = [
+                        "indicative_present",
+                        "indicative_aorist",
+                        "indicative_imperfect",
+                        "subjunctive_present",
+                        "imperative_present",
+                        "participle"
+                    ];
+                    data.sort((a, b) => {
+                        const aIdx = verbTenseOrder.indexOf(a.mood_tense);
+                        const bIdx = verbTenseOrder.indexOf(b.mood_tense);
+                        if (aIdx === -1 && bIdx === -1) return 0;
+                        if (aIdx === -1) return 1;
+                        if (bIdx === -1) return -1;
+                        return aIdx - bIdx;
+                    });
+                }
                 setGrammarData(data || []);
             } else if (word.type === "Adjective") {
                 const { data } = await supabase.from('adjective_agreements').select('*').eq('vocab_id', word.id);
@@ -157,6 +175,11 @@ export default function DictionaryModal({ word, onClose, onUpdate }: { word: any
 
     if (!word) return null;
 
+    const participleObj = (word.type === "Verb" || word.type === "Command") && grammarData
+        ? grammarData.find(d => d.mood_tense?.toLowerCase() === 'participle')
+        : null;
+    const participleText = participleObj ? (participleObj.ata_ato || participleObj.une || "") : "";
+
     return (
         <div
             className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
@@ -240,7 +263,14 @@ export default function DictionaryModal({ word, onClose, onUpdate }: { word: any
                                 <span className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-1 block">
                                     {word.type || "Uncategorized"}
                                 </span>
-                                <h2 className="text-3xl font-black text-white">{word.albanian}</h2>
+                                <h2 className="text-3xl font-black text-white flex items-baseline gap-3">
+                                    {word.albanian}
+                                    {participleText && (
+                                        <span className="text-xl font-normal text-white/50">
+                                            ({participleText})
+                                        </span>
+                                    )}
+                                </h2>
                                 <p className="text-lg text-white/60 mt-1">{word.english}</p>
                             </div>
                         )}
@@ -257,21 +287,32 @@ export default function DictionaryModal({ word, onClose, onUpdate }: { word: any
                             // ── VERB TABLES ──
                             word.type === "Verb" || word.type === "Command" ? (
                                 <div className="space-y-6">
-                                    {grammarData.map((conj, idx) => (
-                                        <div key={idx} className={`rounded-xl border overflow-hidden transition-colors ${isEditing ? 'bg-indigo-900/10 border-indigo-500/30' : 'bg-black/30 border-white/5'}`}>
-                                            <div className={`px-4 py-2 border-b font-semibold text-sm ${isEditing ? 'bg-indigo-500/20 border-indigo-500/30 text-indigo-200' : 'bg-white/5 border-white/5 text-indigo-300'}`}>
-                                                {conj.mood_tense?.replace(/_/g, ' ')?.toUpperCase() || "UNKNOWN TENSE"}
+                                    {grammarData.map((conj, idx) => {
+                                        if (!isEditing && conj.mood_tense?.toLowerCase() === 'participle') {
+                                            return null;
+                                        }
+                                        return (
+                                            <div key={idx} className={`rounded-xl border overflow-hidden transition-colors ${isEditing ? 'bg-indigo-900/10 border-indigo-500/30' : 'bg-black/30 border-white/5'}`}>
+                                                <div className={`px-4 py-2 border-b font-semibold text-sm ${isEditing ? 'bg-indigo-500/20 border-indigo-500/30 text-indigo-200' : 'bg-white/5 border-white/5 text-indigo-300'}`}>
+                                                    {conj.mood_tense?.replace(/_/g, ' ')?.toUpperCase() || "UNKNOWN TENSE"}
+                                                </div>
+                                                {conj.mood_tense?.toLowerCase() === 'participle' ? (
+                                                    <div className="p-4 text-sm w-full md:w-1/2">
+                                                        {renderCell("Form", conj.ata_ato || conj.une, "ata_ato", idx)}
+                                                    </div>
+                                                ) : (
+                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-y-3 gap-x-4 p-4 text-sm">
+                                                        {renderCell("Unë", conj.une, "une", idx)}
+                                                        {renderCell("Ti", conj.ti, "ti", idx)}
+                                                        {renderCell("Ai/Ajo", conj.ai_ajo, "ai_ajo", idx)}
+                                                        {renderCell("Ne", conj.ne, "ne", idx)}
+                                                        {renderCell("Ju", conj.ju, "ju", idx)}
+                                                        {renderCell("Ata/Ato", conj.ata_ato, "ata_ato", idx)}
+                                                    </div>
+                                                )}
                                             </div>
-                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-y-3 gap-x-4 p-4 text-sm">
-                                                {renderCell("Unë", conj.une, "une", idx)}
-                                                {renderCell("Ti", conj.ti, "ti", idx)}
-                                                {renderCell("Ai/Ajo", conj.ai_ajo, "ai_ajo", idx)}
-                                                {renderCell("Ne", conj.ne, "ne", idx)}
-                                                {renderCell("Ju", conj.ju, "ju", idx)}
-                                                {renderCell("Ata/Ato", conj.ata_ato, "ata_ato", idx)}
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             ) :
 
