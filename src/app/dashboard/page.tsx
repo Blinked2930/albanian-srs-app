@@ -19,6 +19,7 @@ interface ChartData {
 }
 
 interface GrammarMetric {
+  dimension_type: string;
   dimension_value: string;
   mastery_score: number;
 }
@@ -69,7 +70,7 @@ export default function Dashboard() {
       // 2. Fetch Grammar Metrics (Sort by lowest mastery to highlight weaknesses)
       const { data: grammarData } = await supabase
         .from('grammar_metrics')
-        .select('dimension_value, mastery_score')
+        .select('dimension_type, dimension_value, mastery_score')
         .order('mastery_score', { ascending: true })
         .limit(5);
 
@@ -230,7 +231,16 @@ export default function Dashboard() {
                   {grammarPerformance.map((grammar, idx) => (
                     <div key={idx} className="flex flex-col gap-2">
                       <div className="flex justify-between text-sm">
-                        <span className="font-medium text-white/90 capitalize">{grammar.dimension_value.replace('_', ' ')}</span>
+                        <span className="font-medium text-white/90 capitalize mb-1">
+                          {(() => {
+                            const val = grammar.dimension_value.replace(/_/g, ' ');
+                            const typeStr = grammar.dimension_type ? grammar.dimension_type.split('_')[0] : '';
+                            if (['Plural', 'Singular', 'Definite', 'Indefinite', 'Masculine', 'Feminine'].includes(grammar.dimension_value)) {
+                              return `${typeStr} ${val}`;
+                            }
+                            return val;
+                          })()}
+                        </span>
                         <span className="text-white/50 font-mono">{Math.round(grammar.mastery_score * 100)}% Mastery</span>
                       </div>
                       <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden">
