@@ -306,18 +306,6 @@ export default function SentenceDrill() {
     if (idx !== -1) dbVocabRef.current[idx] = { ...dbVocabRef.current[idx], ...updatedWord };
   };
 
-  const renderSentence = (text: string) => {
-    const parts = text.split("___");
-    if (parts.length !== 2) return <span className="text-white">{text}</span>;
-    return (
-      <span className="leading-relaxed">
-        {parts[0]}
-        <span className="inline-block border-b-2 border-emerald-400 w-16 mx-1 opacity-50 relative top-1"></span>
-        {parts[1]}
-      </span>
-    );
-  };
-
   if (phase === "loading") {
     return (
       <main className="min-h-screen bg-[#0F172A] text-white flex items-center justify-center">
@@ -429,92 +417,94 @@ export default function SentenceDrill() {
           </div>
         )}
 
-        {!caughtUp && currentPrompt && (
-          <>
-            <section className="text-center mb-10">
-              <h2 className="text-2xl sm:text-3xl font-medium text-white/90 mb-8 leading-tight drop-shadow-md">
-                "{renderSentence(currentPrompt.blanked_albanian)}"
-              </h2>
-
-              <div className="bg-white/5 border border-white/10 rounded-xl py-3 px-6 inline-block mx-auto">
-                <span className="text-white/50 text-sm uppercase tracking-widest block mb-1">Target Word</span>
-                <span className="text-emerald-400 font-bold text-xl">{currentPrompt.target_english}</span>
-              </div>
-            </section>
-
+        {!caughtUp && currentPrompt && (() => {
+          const sentenceParts = currentPrompt.blanked_albanian ? currentPrompt.blanked_albanian.split("___") : ["", ""];
+          return (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 handleCheck();
               }}
-              className="flex flex-col gap-4"
+              className="flex flex-col w-full"
             >
-              <input
-                key={`input-${currentPrompt?.promptId}`}
-                type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)}
-                ref={inputRef}
-                disabled={!!(feedback && feedback.promptId === currentPrompt?.promptId)} autoComplete="off"
-                className="w-full bg-black/30 border border-white/10 focus:border-emerald-500 outline-none rounded-xl px-4 py-4 text-center text-xl transition-all disabled:opacity-50"
-                placeholder="Type the missing Albanian word..."
-              />
+              {/* Inline Sentence Input Section */}
+              <div className="text-center mb-10">
+                <div className="text-2xl sm:text-3xl font-medium text-white/90 mb-4 leading-loose drop-shadow-md block">
+                  {sentenceParts[0]}
+                  <input
+                    key={`input-${currentPrompt?.promptId}`}
+                    type="text"
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                    ref={inputRef}
+                    disabled={!!(feedback && feedback.promptId === currentPrompt?.promptId)}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck="false"
+                    className="inline-block mx-2 w-32 sm:w-40 bg-black/30 border-b-2 border-x-0 border-t-0 border-emerald-500 focus:border-emerald-400 focus:bg-white/5 outline-none px-2 py-1 text-center text-emerald-400 font-bold transition-all disabled:opacity-50"
+                    autoFocus
+                  />
+                  {sentenceParts[1]}
+                </div>
+
+                <div className="inline-block mt-2">
+                  <span className="text-white/40 text-xs uppercase tracking-widest mr-2">Target:</span>
+                  <span className="text-emerald-400 font-semibold">{currentPrompt.target_english}</span>
+                </div>
+              </div>
 
               {!feedback && (
-                <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-emerald-500/20 active:scale-[0.98]">
+                <button type="submit" className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-emerald-500/20 active:scale-[0.98]">
                   Check
                 </button>
               )}
-            </form>
 
-            {feedback && feedback.promptId === currentPrompt?.promptId && (
-              <div className="mt-4 flex flex-col gap-4">
-                <button
-                  type="button"
-                  onClick={generatePrompt}
-                  className="w-full bg-white text-black font-bold py-4 rounded-xl transition-colors hover:bg-gray-100 active:scale-[0.98]"
-                >
-                  Next Sentence (Press Enter)
-                </button>
-
-                <div className={`p-6 rounded-xl text-center font-medium animate-in fade-in slide-in-from-bottom-2 ${feedback.score === 1.0 ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20" :
-                    feedback.score > 0 ? "bg-amber-500/10  text-amber-300  border border-amber-500/20" :
-                      "bg-rose-500/10   text-rose-300   border border-rose-500/20"
-                  }`}>
-                  {feedback.score === 1.0 && <p className="text-lg font-bold mb-2">Perfect! ✓</p>}
-                  {feedback.score > 0 && feedback.score < 1.0 && <p className="text-lg font-bold mb-2">Almost! ½</p>}
-                  {feedback.score === 0.0 && <p className="text-lg font-bold mb-2">Incorrect!</p>}
-
-                  {feedback.score < 1.0 && (
-                    <p className="mt-2 text-base text-white/80">
-                      The missing word was: <span className="font-bold text-white">{feedback.expected}</span>
-                    </p>
-                  )}
-
-                  <div className="mt-4 pt-4 border-t border-white/10 text-sm flex flex-col gap-3">
-                    <div>
-                      <p className="text-white/60 mb-1">Full Translation:</p>
-                      <p className="text-white font-medium italic">"{currentPrompt.english_translation}"</p>
-                    </div>
-                    {currentPrompt.grammar_type && (
-                      <div className="bg-black/30 rounded px-3 py-2 inline-block mx-auto border border-white/5">
-                        <span className="text-white/40 uppercase tracking-wider text-[10px] block">Grammar Exercised</span>
-                        <span className="text-emerald-400 text-xs font-mono">{currentPrompt.grammar_type}: {currentPrompt.grammar_value}</span>
-                      </div>
-                    )}
-                  </div>
-
+              {/* Feedback Section */}
+              {feedback && feedback.promptId === currentPrompt?.promptId && (
+                <div className="mt-4 flex flex-col gap-4">
                   <button
                     type="button"
-                    onClick={openDictionaryForCurrentWord}
-                    className="mt-5 flex items-center justify-center gap-2 mx-auto text-sm text-white/50 hover:text-white transition-colors hover:bg-white/5 px-3 py-1.5 rounded-lg"
+                    onClick={generatePrompt}
+                    className="w-full bg-white text-black font-bold py-4 rounded-xl transition-colors hover:bg-gray-100 active:scale-[0.98]"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
-                    View Grammar Details
+                    Next Sentence (Press Enter)
                   </button>
+
+                  <div className={`p-6 rounded-xl text-center font-medium animate-in fade-in slide-in-from-bottom-2 ${feedback.score === 1.0 ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20" :
+                      feedback.score > 0 ? "bg-amber-500/10  text-amber-300  border border-amber-500/20" :
+                        "bg-rose-500/10   text-rose-300   border border-rose-500/20"
+                    }`}>
+                    {feedback.score === 1.0 && <p className="text-lg font-bold mb-2">Perfect! ✓</p>}
+                    {feedback.score > 0 && feedback.score < 1.0 && <p className="text-lg font-bold mb-2">Almost! ½</p>}
+                    {feedback.score === 0.0 && <p className="text-lg font-bold mb-2">Incorrect!</p>}
+
+                    {feedback.score < 1.0 && (
+                      <p className="mt-2 text-base text-white/80">
+                        The missing word was: <span className="font-bold text-white">{feedback.expected}</span>
+                      </p>
+                    )}
+
+                    <div className="mt-4 pt-4 border-t border-white/10 text-sm flex flex-col gap-3">
+                      <div>
+                        <p className="text-white/60 mb-1">Full Translation:</p>
+                        <p className="text-white font-medium italic">"{currentPrompt.english_translation}"</p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={openDictionaryForCurrentWord}
+                      className="mt-5 flex items-center justify-center gap-2 mx-auto text-sm text-white/50 hover:text-white transition-colors hover:bg-white/5 px-3 py-1.5 rounded-lg"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+                      View Grammar Details
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </>
-        )}
+              )}
+            </form>
+          );
+        })()}
       </div>
 
       <DictionaryModal

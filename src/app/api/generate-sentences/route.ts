@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Initialize Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''; 
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Initialize Gemini
@@ -12,6 +12,22 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export async function POST(request: Request) {
   try {
+    // 0. THE IMPEACHMENT CLAUSE (Garbage Collection)
+    // Ruthlessly delete any sentence older than 30 days to keep context fresh
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const { error: purgeError } = await supabase
+      .from('sentences')
+      .delete()
+      .lt('created_at', thirtyDaysAgo.toISOString());
+
+    if (purgeError) {
+      console.error("Impeachment Clause Failed:", purgeError);
+    } else {
+      console.log("Impeachment Clause Executed: Stale context purged.");
+    }
+
     // 1. Fetch vocab needing sentences, explicitly pulling mastery_score
     const { data: allVocab, error: fetchError } = await supabase
       .from('vocab')
@@ -35,7 +51,7 @@ export async function POST(request: Request) {
     // Target the 3 absolute weakest verbs and 2 absolute weakest non-verbs
     const targetVerbCount = Math.min(3, verbs.length);
     const remainingSlots = 5 - targetVerbCount;
-    
+
     const selectedVerbs = verbs.slice(0, targetVerbCount);
     const selectedNonVerbs = nonVerbs.slice(0, remainingSlots);
 
@@ -49,7 +65,7 @@ export async function POST(request: Request) {
       .gte('mastery_score', 0.4)
       .lte('mastery_score', 0.8)
       .limit(50);
-      
+
     if (midTierError) console.error("Could not fetch mid-tier vocab, proceeding without it.");
 
     const getRandomMidTierWords = () => {
@@ -153,21 +169,21 @@ export async function POST(request: Request) {
       const parentVocab = vocabToProcess.find(v => v.albanian.toLowerCase() === aiSentence.albanian_word.toLowerCase());
       return {
         vocab_id: parentVocab?.id,
-        grammar_type: aiSentence.grammar_type || null, 
+        grammar_type: aiSentence.grammar_type || null,
         grammar_value: aiSentence.grammar_value || null,
         blanked_albanian: aiSentence.blanked_albanian,
         target_albanian: aiSentence.target_albanian,
         target_english: aiSentence.target_english,
         english_translation: aiSentence.english_translation
       };
-    }).filter((payload: any) => payload.vocab_id); 
+    }).filter((payload: any) => payload.vocab_id);
 
     // 9. Inject into Supabase
     const { error: insertError } = await supabase.from('sentences').insert(insertPayload);
     if (insertError) throw insertError;
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: `Successfully generated and saved ${insertPayload.length} new sentences.`,
       data: insertPayload
     });
