@@ -87,6 +87,19 @@ export default function WordDrill() {
     new Set(TYPE_FILTERS.map(f => f.id))
   );
 
+  // Drag to select state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragAction, setDragAction] = useState<"select" | "unselect" | null>(null);
+
+  useEffect(() => {
+    const handlePointerUp = () => {
+      setIsDragging(false);
+      setDragAction(null);
+    };
+    window.addEventListener('pointerup', handlePointerUp);
+    return () => window.removeEventListener('pointerup', handlePointerUp);
+  }, []);
+
   const [currentPrompt, setCurrentPrompt] = useState<any>(null);
   const [caughtUp, setCaughtUp] = useState(false);
   const [userInput, setUserInput] = useState("");
@@ -189,16 +202,36 @@ export default function WordDrill() {
   }
 
   function toggleFilter(id: string) {
+    updateFilter(id, !selectedFilters.has(id));
+  }
+
+  function updateFilter(id: string, select: boolean) {
     setSelectedFilters(prev => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        if (next.size === 1) return prev;
-        next.delete(id);
-      } else {
+      if (select) {
         next.add(id);
+      } else {
+        if (next.size > 1) {
+          next.delete(id);
+        }
       }
       return next;
     });
+  }
+
+  function handlePointerDown(e: React.PointerEvent<HTMLButtonElement>, id: string, currentlyActive: boolean) {
+    // Release pointer capture so pointer events can fire on sibling elements during drag
+    e.currentTarget.releasePointerCapture(e.pointerId); 
+    setIsDragging(true);
+    const willSelect = !currentlyActive;
+    setDragAction(willSelect ? "select" : "unselect");
+    updateFilter(id, willSelect);
+  }
+
+  function handlePointerEnter(id: string) {
+    if (isDragging && dragAction !== null) {
+      updateFilter(id, dragAction === "select");
+    }
   }
 
   function startDrill() {
@@ -553,8 +586,16 @@ export default function WordDrill() {
               const active = selectedFilters.has(filter.id);
               return (
                 <button
-                  key={filter.id} onClick={() => toggleFilter(filter.id)}
-                  className={`relative p-4 rounded-2xl border-2 text-left transition-all duration-200 ${active ? `bg-gradient-to-br ${filter.color} border-transparent shadow-lg scale-[1.02]` : `bg-white/5 ${filter.border} hover:bg-white/10 hover:scale-[1.01]`
+                  key={filter.id} 
+                  onPointerDown={(e) => handlePointerDown(e, filter.id, active)}
+                  onPointerEnter={() => handlePointerEnter(filter.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleFilter(filter.id);
+                    }
+                  }}
+                  className={`relative p-4 rounded-2xl border-2 text-left touch-none transition-all duration-200 ${active ? `bg-gradient-to-br ${filter.color} border-transparent shadow-lg scale-[1.02]` : `bg-white/5 ${filter.border} hover:bg-white/10 hover:scale-[1.01]`
                     }`}
                 >
                   {active && (
