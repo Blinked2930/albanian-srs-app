@@ -266,7 +266,8 @@ export default function ManageVocab() {
   const handleExport = () => {
     const header = "Albanian,English,Type,Confidence,Usefulness,Mastery Score,Streak,Next Review\n";
     const csvContent = vocabList.map(v => {
-      return `"${v.albanian}","${v.english}","${v.type || 'Unknown'}","${v.confidence}",${v.usefulness},${v.mastery_score},${v.streak},"${v.next_review || ''}"`;
+      const reviewText = v.next_review || 'Due Now';
+      return `"${v.albanian}","${v.english}","${v.type || 'Unknown'}","${v.confidence}",${v.usefulness},${v.mastery_score},${v.streak},"${reviewText}"`;
     }).join("\n");
 
     const fullCsv = header + csvContent;
