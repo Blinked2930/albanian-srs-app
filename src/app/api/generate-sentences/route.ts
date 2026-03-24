@@ -13,14 +13,14 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 export async function POST(request: Request) {
   try {
     // 0. THE IMPEACHMENT CLAUSE (Garbage Collection)
-    // Ruthlessly delete any sentence older than 30 days to keep context fresh
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Ruthlessly delete any sentence older than 2 weeks to keep context fresh
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
     const { error: purgeError } = await supabase
       .from('sentences')
       .delete()
-      .lt('created_at', thirtyDaysAgo.toISOString());
+      .lt('created_at', twoWeeksAgo.toISOString());
 
     if (purgeError) {
       console.error("Impeachment Clause Failed:", purgeError);
@@ -48,14 +48,14 @@ export async function POST(request: Request) {
     const verbs = needsSentences.filter((v: any) => v.type === 'Verb' || v.type === 'Command');
     const nonVerbs = needsSentences.filter((v: any) => v.type !== 'Verb' && v.type !== 'Command');
 
-    // Target the 3 absolute weakest verbs and 2 absolute weakest non-verbs
-    const targetVerbCount = Math.min(3, verbs.length);
-    const remainingSlots = 5 - targetVerbCount;
+    // Target the 6 absolute weakest verbs and 6 absolute weakest non-verbs
+    const targetVerbCount = Math.min(6, verbs.length);
+    const remainingSlots = 12 - targetVerbCount;
 
     const selectedVerbs = verbs.slice(0, targetVerbCount);
     const selectedNonVerbs = nonVerbs.slice(0, remainingSlots);
 
-    // Combine the 5 weakest words and give them a quick shuffle so Gemini doesn't always see verbs first
+    // Combine the 12 weakest words and give them a quick shuffle so Gemini doesn't always see verbs first
     const vocabToProcess = [...selectedVerbs, ...selectedNonVerbs].sort(() => 0.5 - Math.random());
 
     // 3. Fetch "Mid-Tier" words for passive exposure
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
     `;
 
     // 6. Ping Gemini
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
 
@@ -189,7 +189,10 @@ export async function POST(request: Request) {
     });
 
   } catch (error: any) {
-    console.error("Sentence Generation Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Sentence Generation API Error:", error);
+    return NextResponse.json({ 
+      error: "Failed to generate sentences. There was an error with the AI API.",
+      details: error.message 
+    }, { status: 500 });
   }
 }

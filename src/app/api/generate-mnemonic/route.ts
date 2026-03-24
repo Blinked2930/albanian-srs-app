@@ -29,12 +29,15 @@ export async function POST(request: Request) {
       **The Scene:** [The vivid 1-2 sentence story]
     `;
 
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite-preview" });
         const result = await model.generateContent(prompt);
 
         return NextResponse.json({ mnemonic: result.response.text() });
     } catch (error: any) {
-        console.error("Mnemonic Generation Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("Mnemonic Generation API Error:", error);
+        return NextResponse.json({ 
+            error: "Failed to generate mnemonic. There was an error with the AI API.",
+            details: error.message 
+        }, { status: 500 });
     }
 }
