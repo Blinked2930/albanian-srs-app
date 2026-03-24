@@ -82,11 +82,20 @@ export default function ManageVocab() {
   const [isGenerating, setIsGenerating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Modal State
+  // App Settings / Prompt Modal State
+  const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [editedPrompt, setEditedPrompt] = useState("");
+  const [isEditingPrompt, setIsEditingPrompt] = useState(false);
+  const [isSavingPrompt, setIsSavingPrompt] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  // Word Modal State
   const [selectedWord, setSelectedWord] = useState<VocabType | null>(null);
 
   useEffect(() => {
     fetchVocab();
+    fetchSystemPrompt();
   }, []);
 
   async function fetchVocab() {
@@ -112,6 +121,26 @@ export default function ManageVocab() {
       console.error("Failed to load vocab:", err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchSystemPrompt() {
+    try {
+      const supabase = getSupabase();
+      if (!supabase) return;
+
+      const { data, error } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "gemini_sql_prompt")
+        .single();
+
+      if (data) {
+        setSystemPrompt(data.value);
+        setEditedPrompt(data.value);
+      }
+    } catch (err) {
+      console.error("Failed to load system prompt:", err);
     }
   }
 
@@ -300,11 +329,38 @@ export default function ManageVocab() {
     }
   };
 
+  // --- Prompt Modal Handlers ---
+  const handleCopyPrompt = () => {
+    navigator.clipboard.writeText(systemPrompt);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
+  };
+
+  const handleSavePrompt = async () => {
+    setIsSavingPrompt(true);
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const { error } = await supabase
+      .from("app_settings")
+      .update({ value: editedPrompt, updated_at: new Date().toISOString() })
+      .eq("key", "gemini_sql_prompt");
+
+    if (error) {
+      alert("Failed to save prompt: " + error.message);
+    } else {
+      setSystemPrompt(editedPrompt);
+      setIsEditingPrompt(false);
+    }
+    setIsSavingPrompt(false);
+  };
+  // -----------------------------
+
   const formatDue = (dateStr: string | null) => {
     if (!dateStr) return <span className="text-emerald-400 font-bold">Due Now</span>;
     const date = new Date(dateStr);
     const now = new Date();
-    if (date <= now) return <span className="textemerald-400 font-bold">Due Now</span>;
+    if (date <= now) return <span className="text-emerald-400 font-bold">Due Now</span>;
 
     const diffHours = Math.round((date.getTime() - now.getTime()) / (1000 * 60 * 60));
     if (diffHours < 24) return <span className="text-white/60">in {diffHours} hr{diffHours !== 1 ? 's' : ''}</span>;
@@ -365,6 +421,15 @@ export default function ManageVocab() {
           </div>
 
           <div className="flex gap-3 flex-wrap sm:flex-nowrap">
+            {/* Prompt Config Button */}
+            <button
+              onClick={() => setIsPromptModalOpen(true)}
+              className="bg-white/10 hover:bg-white/20 text-white font-medium p-2 rounded-lg transition-colors flex items-center justify-center shadow-sm active:scale-95"
+              title="Data Pipeline Prompt"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" x2="20" y1="19" y2="19" /></svg>
+            </button>
+
             <button
               onClick={handleGenerateSentences}
               disabled={isGenerating}
@@ -547,6 +612,99 @@ export default function ManageVocab() {
           setSelectedWord({ ...selectedWord, ...updatedWord } as VocabType);
         }}
       />
+
+      {/* Prompt Modal Overlay */}
+      {isPromptModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6"
+          onClick={() => !isEditingPrompt && setIsPromptModalOpen(false)}
+        >
+          <div
+            className="bg-[#0F172A] border border-white/10 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <header className="flex justify-between items-center p-4 sm:px-6 sm:py-4 border-b border-white/10">
+              <h3 className="text-lg font-bold flex items-center gap-2 text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" className="text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" x2="20" y1="19" y2="19" /></svg>
+                Data Pipeline Prompt
+              </h3>
+              <button
+                onClick={() => setIsPromptModalOpen(false)}
+                className="text-white/50 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors"
+                title="Close"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </header>
+
+            <div className="flex-1 overflow-hidden flex flex-col p-4 sm:p-6 bg-black/20">
+              {isEditingPrompt ? (
+                <textarea
+                  value={editedPrompt}
+                  onChange={e => setEditedPrompt(e.target.value)}
+                  spellCheck={false}
+                  className="flex-1 w-full bg-black/50 border border-indigo-500/50 focus:border-indigo-400 outline-none rounded-xl p-4 font-mono text-xs sm:text-sm text-emerald-300 resize-none transition-colors shadow-inner"
+                />
+              ) : (
+                <div className="flex-1 w-full bg-black/50 border border-white/10 rounded-xl p-4 overflow-auto font-mono text-xs sm:text-sm text-emerald-300/80 whitespace-pre-wrap shadow-inner leading-relaxed">
+                  {systemPrompt || "Loading prompt..."}
+                </div>
+              )}
+            </div>
+
+            <footer className="p-4 sm:px-6 sm:py-4 border-t border-white/10 flex justify-end gap-3 bg-white/5 rounded-b-2xl">
+              {isEditingPrompt ? (
+                <>
+                  <button
+                    onClick={() => { setIsEditingPrompt(false); setEditedPrompt(systemPrompt); }}
+                    className="px-4 py-2 rounded-lg font-medium bg-white/5 hover:bg-white/10 text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSavePrompt}
+                    disabled={isSavingPrompt}
+                    className="px-4 py-2 rounded-lg font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors flex items-center gap-2 shadow-lg active:scale-95 disabled:opacity-50"
+                  >
+                    {isSavingPrompt ? (
+                      <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+                    )}
+                    {isSavingPrompt ? "Saving..." : "Save Changes"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setIsEditingPrompt(true)}
+                    className="px-4 py-2 rounded-lg font-medium bg-white/5 hover:bg-white/10 text-white transition-colors flex items-center gap-2 active:scale-95"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                    Edit
+                  </button>
+                  <button
+                    onClick={handleCopyPrompt}
+                    className="px-4 py-2 rounded-lg font-medium bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-400 transition-colors flex items-center gap-2 active:scale-95"
+                  >
+                    {copySuccess ? (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                        Copy to Clipboard
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
+            </footer>
+          </div>
+        </div>
+      )}
 
     </main>
   );
