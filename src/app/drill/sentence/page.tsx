@@ -47,6 +47,7 @@ export default function SentenceDrill() {
   const actionLock = useRef(false);
 
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showTarget, setShowTarget] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -123,6 +124,7 @@ export default function SentenceDrill() {
   function startDrill() {
     setPhase("drill");
     setCaughtUp(false);
+    setShowTarget(false);
     pickAndSetPrompt(dbVocabRef.current);
   }
 
@@ -169,6 +171,7 @@ export default function SentenceDrill() {
     setFeedback(null);
     setUserInput("");
     setMnemonic(null); // Reset mnemonic state on next prompt
+    setShowTarget(false); // Reset target visibility
     pickAndSetPrompt(dbVocabRef.current);
 
     setTimeout(() => {
@@ -313,6 +316,7 @@ export default function SentenceDrill() {
     const score = finalInput === "" ? 0.0 : evaluateAnswer(currentPrompt.expected, finalInput, 0.8);
 
     setFeedback({ score, expected: currentPrompt.expected, promptId: currentPrompt.promptId });
+    setShowTarget(true);
     updateMastery(currentPrompt, score);
 
     setTimeout(() => {
@@ -483,9 +487,19 @@ export default function SentenceDrill() {
                   {sentenceParts[1]}
                 </div>
 
-                <div className="inline-block mt-2">
-                  <span className="text-white/40 text-xs uppercase tracking-widest mr-2">Target:</span>
-                  <span className="text-emerald-400 font-semibold">{currentPrompt.target_english}</span>
+                <div className="inline-flex mt-2 items-center justify-center gap-2">
+                  <span className="text-white/40 text-xs uppercase tracking-widest">Target:</span>
+                  {showTarget ? (
+                    <span className="text-emerald-400 font-semibold animate-in fade-in">{currentPrompt.target_english}</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowTarget(true)}
+                      className="text-xs bg-white/10 hover:bg-white/20 text-white/70 px-2 py-1 rounded transition-colors border border-white/10"
+                    >
+                      Reveal
+                    </button>
+                  )}
                 </div>
               </div>
 
