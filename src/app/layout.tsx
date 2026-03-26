@@ -44,9 +44,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${quicksand.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${quicksand.variable} antialiased bg-[#fafafa]`}
       >
-        <div className="pb-28 min-h-screen">
+        {/* Dynamic padding perfectly sizes the gap for the bottom bar */}
+        <div className="pb-[calc(6rem+env(safe-area-inset-bottom))] min-h-[100dvh]">
           {children}
         </div>
         <BottomNav />
