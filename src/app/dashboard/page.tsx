@@ -129,56 +129,52 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0F172A] text-white p-6 pb-24 relative overflow-x-hidden">
-      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-amber-600/10 rounded-full blur-[120px] pointer-events-none"></div>
-
+    <main className="min-h-screen p-6 pt-12 pb-24 relative overflow-x-hidden">
       <div className="max-w-5xl mx-auto z-10 relative">
-        <header className="flex justify-between items-end mb-10">
+        <header className="flex justify-between items-end mb-10 pl-2">
           <div>
-            <Link href="/" className="text-amber-400 hover:text-amber-300 text-sm font-medium transition-colors inline-flex items-center gap-2 mb-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-              Back to Hub
-            </Link>
-            <h1 className="text-4xl font-black tracking-tight">Progress Dashboard</h1>
-            <p className="text-white/50 mt-1">Visualize your language acquisition.</p>
+            <h1 className="text-4xl font-black tracking-tight text-slate-700">Progress Dashboard</h1>
+            <p className="text-slate-400 font-bold mt-1">Visualize your language acquisition.</p>
           </div>
         </header>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center h-64 border border-white/10 rounded-2xl glassmorphism">
-             <div className="w-8 h-8 border-2 border-white/20 border-t-amber-400 rounded-full animate-spin mb-4"></div>
-             <p className="text-white/50">Compiling analytics...</p>
+          <div className="flex flex-col items-center justify-center h-64 cutesy-glass rounded-[2rem] border-2 border-white/80 shadow-sm">
+             <div className="w-8 h-8 border-4 border-slate-200 border-t-pink-400 rounded-full animate-spin mb-4"></div>
+             <p className="text-slate-400 font-bold">Compiling analytics...</p>
           </div>
         ) : (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
               {/* Top Level KPIs */}
-              <div className="glassmorphism p-6 rounded-2xl border border-white/10 flex flex-col justify-center relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+              <div className="cutesy-glass p-8 rounded-[2rem] border-2 border-white/80 shadow-md flex flex-col justify-center relative overflow-hidden group hover:scale-[1.02] transition-transform">
+                <div className="absolute top-0 right-0 p-4 opacity-10 text-indigo-500">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
                 </div>
-                <h3 className="text-sm uppercase tracking-widest text-white/50 mb-2 font-semibold">Total Words Learned</h3>
-                <p className="text-5xl font-black text-white">{kpis.totalWords}</p>
+                <h3 className="text-xs uppercase tracking-widest text-slate-400 mb-2 font-bold">Total Words Learned</h3>
+                <p className="text-6xl font-black text-indigo-500 drop-shadow-sm">{kpis.totalWords}</p>
               </div>
               
-              <div className="glassmorphism p-6 rounded-2xl border border-white/10 flex flex-col justify-center">
-                <h3 className="text-sm uppercase tracking-widest text-white/50 mb-2 font-semibold">Global Mastery Score</h3>
-                <p className="text-5xl font-black text-amber-400">{kpis.globalMastery}</p>
-                <p className="text-sm text-white/50 mt-2 font-medium">Target: 1.0</p>
+              <div className="cutesy-glass p-8 rounded-[2rem] border-2 border-white/80 shadow-md flex flex-col justify-center group hover:scale-[1.02] transition-transform">
+                <h3 className="text-xs uppercase tracking-widest text-slate-400 mb-2 font-bold">Global Mastery Score</h3>
+                <p className="text-6xl font-black text-amber-500 drop-shadow-sm">{kpis.globalMastery}</p>
+                <p className="text-sm text-slate-400 mt-2 font-bold">Target: 1.0</p>
               </div>
               
-              <div className="glassmorphism p-6 rounded-2xl border border-white/10 flex flex-col justify-center">
-                <h3 className="text-sm uppercase tracking-widest text-white/50 mb-2 font-semibold">Max Word Streak</h3>
-                <p className="text-5xl font-black text-rose-400">{kpis.activeStreak}<span className="text-2xl text-white/50 ml-1">Days</span></p>
-                <p className="text-sm text-rose-400/80 mt-2 font-medium">Maintain the discipline.</p>
+              <div className="cutesy-glass p-8 rounded-[2rem] border-2 border-white/80 shadow-md flex flex-col justify-center group hover:scale-[1.02] transition-transform">
+                <h3 className="text-xs uppercase tracking-widest text-slate-400 mb-2 font-bold">Max Word Streak</h3>
+                <p className="text-6xl font-black text-rose-400 drop-shadow-sm">{kpis.activeStreak}<span className="text-2xl text-slate-300 ml-2">Days</span></p>
+                <p className="text-sm text-rose-400 mt-2 font-bold">Maintain the discipline.</p>
               </div>
             </div>
 
             {/* Chart Section */}
-            <section className="glassmorphism p-6 rounded-2xl border border-white/10 mb-8">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" className="text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <section className="cutesy-glass p-8 rounded-[2.5rem] border-2 border-white/80 shadow-md mb-8">
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-2xl font-black flex items-center gap-3 text-slate-700">
+                  <div className="bg-amber-100 p-2 rounded-xl text-amber-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                  </div>
                   7-Day Mastery Trajectory
                 </h2>
               </div>
@@ -187,51 +183,53 @@ export default function Dashboard() {
                   <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorMastery" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#fbbf24" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#fbbf24" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                    <XAxis dataKey="name" stroke="#ffffff50" axisLine={false} tickLine={false} dy={10} />
-                    <YAxis stroke="#ffffff50" axisLine={false} tickLine={false} dx={-10} domain={[0, 1]} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="name" stroke="#94a3b8" axisLine={false} tickLine={false} dy={10} tick={{fontWeight: 'bold', fontSize: 12}} />
+                    <YAxis stroke="#94a3b8" axisLine={false} tickLine={false} dx={-20} domain={[0, 1]} tick={{fontWeight: 'bold', fontSize: 12}} />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }}
-                      itemStyle={{ color: '#fbbf24' }} 
+                      contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #f1f5f9', borderRadius: '16px', color: '#334155', fontWeight: 'bold' }}
+                      itemStyle={{ color: '#f59e0b', fontWeight: '900' }} 
                     />
-                    <Area type="monotone" dataKey="mastery" stroke="#fbbf24" strokeWidth={3} fillOpacity={1} fill="url(#colorMastery)" />
+                    <Area type="monotone" dataKey="mastery" stroke="#f59e0b" strokeWidth={5} fillOpacity={1} fill="url(#colorMastery)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </section>
 
             {/* Grammar Weaknesses (SRS Prioritization) */}
-            <section className="glassmorphism p-6 rounded-2xl border border-white/10 relative overflow-hidden">
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-6 gap-4">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" className="text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3z"/><path d="M3 4h8s-.5-2-1-2H5a2 2 0 0 0-2 2z"/></svg>
+            <section className="cutesy-glass p-8 rounded-[2.5rem] border-2 border-white/80 shadow-md relative overflow-hidden">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 gap-4">
+                <h2 className="text-2xl font-black flex items-center gap-3 text-slate-700">
+                  <div className="bg-rose-100 p-2 rounded-xl text-rose-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3z"/><path d="M3 4h8s-.5-2-1-2H5a2 2 0 0 0-2 2z"/></svg>
+                  </div>
                   Grammar Blind Spots
                 </h2>
                 {grammarPerformance.length > 0 && (
                   <Link 
                     href="/drill/word" 
-                    className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2 active:scale-95 text-sm w-fit"
+                    className="bg-rose-500 hover:bg-rose-400 text-white font-black py-3 px-5 rounded-[1.5rem] transition-all shadow-md active:scale-95 text-sm w-fit flex items-center gap-2"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" x2="12" y1="18" y2="12"/><line x1="9" x2="15" y1="15" y2="15"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" x2="12" y1="18" y2="12"/><line x1="9" x2="15" y1="15" y2="15"/></svg>
                     Drill Weaknesses
                   </Link>
                 )}
               </div>
               
               {grammarPerformance.length === 0 ? (
-                <div className="text-center py-8 text-white/50 text-sm">
+                <div className="text-center py-8 text-slate-400 font-bold text-sm">
                   Complete more grammar drills to generate targeted insights.
                 </div>
               ) : (
-                <div className="space-y-5">
+                <div className="space-y-6">
                   {grammarPerformance.map((grammar, idx) => (
                     <div key={idx} className="flex flex-col gap-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="font-medium text-white/90 capitalize mb-1">
+                      <div className="flex justify-between text-base">
+                        <span className="font-bold text-slate-700 capitalize mb-1">
                           {(() => {
                             const val = grammar.dimension_value.replace(/_/g, ' ');
                             const typeStr = grammar.dimension_type ? grammar.dimension_type.split('_')[0] : '';
@@ -241,14 +239,14 @@ export default function Dashboard() {
                             return val;
                           })()}
                         </span>
-                        <span className="text-white/50 font-mono">{Math.round(grammar.mastery_score * 100)}% Mastery</span>
+                        <span className="text-slate-400 font-black">{Math.round(grammar.mastery_score * 100)}% Mastery</span>
                       </div>
-                      <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden">
+                      <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner border border-slate-200">
                         <div 
                           className={`h-full rounded-full transition-all duration-1000 ${
-                            grammar.mastery_score < 0.4 ? 'bg-rose-500' : 
-                            grammar.mastery_score < 0.8 ? 'bg-amber-500' : 
-                            'bg-emerald-500'
+                            grammar.mastery_score < 0.4 ? 'bg-rose-400' : 
+                            grammar.mastery_score < 0.8 ? 'bg-amber-400' : 
+                            'bg-emerald-400'
                           }`} 
                           style={{ width: `${Math.max(5, grammar.mastery_score * 100)}%` }}
                         ></div>

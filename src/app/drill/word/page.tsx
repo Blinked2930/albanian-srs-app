@@ -554,9 +554,9 @@ export default function WordDrill() {
 
   if (phase === "loading") {
     return (
-      <main className="min-h-screen bg-[#0F172A] text-white flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4 text-white/40">
-          <div className="w-8 h-8 border-4 border-white/20 border-t-white/60 rounded-full animate-spin"></div>
+      <main className="min-h-screen flex items-center justify-center pb-20">
+        <div className="flex flex-col items-center gap-4 text-slate-400 font-bold">
+          <div className="w-8 h-8 border-4 border-slate-200 border-t-pink-400 rounded-full animate-spin"></div>
           <p className="text-sm">Loading vocabulary...</p>
         </div>
       </main>
@@ -568,15 +568,12 @@ export default function WordDrill() {
     const dueCount = filteredVocab.filter(w => !w.next_review || new Date(w.next_review) <= new Date()).length;
 
     return (
-      <main className="min-h-screen bg-[#0F172A] text-white flex flex-col items-center justify-center p-6">
+      <main className="min-h-screen flex flex-col items-center p-6 pt-12 pb-24">
         <div className="max-w-3xl w-full">
           <div className="flex items-center gap-4 mb-8">
-            <Link href="/" className="text-white/40 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-            </Link>
             <div>
-              <p className="text-xs uppercase tracking-widest text-indigo-400 font-semibold">Word Drill · SM-2</p>
-              <h1 className="text-2xl font-bold">Choose word types</h1>
+              <p className="text-xs uppercase tracking-widest text-indigo-400 font-bold">Word Drill · SM-2</p>
+              <h1 className="text-3xl font-black text-slate-700 tracking-tight">Tap Word Types</h1>
             </div>
           </div>
 
@@ -595,7 +592,7 @@ export default function WordDrill() {
                       toggleFilter(filter.id);
                     }
                   }}
-                  className={`relative p-4 rounded-2xl border-2 text-left touch-none transition-all duration-200 ${active ? `bg-gradient-to-br ${filter.color} border-transparent shadow-lg scale-[1.02]` : `bg-white/5 ${filter.border} hover:bg-white/10 hover:scale-[1.01]`
+                  className={`relative p-4 rounded-[1.5rem] border-2 text-left touch-none transition-all duration-200 ${active ? `bg-gradient-to-br ${filter.color} border-transparent shadow-lg scale-[1.02] text-white` : `bg-white border-slate-100 hover:bg-slate-50 hover:scale-[1.01] text-slate-700 shadow-sm`
                     }`}
                 >
                   {active && (
@@ -603,20 +600,20 @@ export default function WordDrill() {
                       <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                     </div>
                   )}
-                  <span className="text-2xl mb-2 block">{filter.emoji}</span>
+                  <span className="text-3xl mb-2 block">{filter.emoji}</span>
                   <p className="font-bold text-sm">{filter.label}</p>
-                  <p className="text-xs text-white/60 mt-0.5">{count} words</p>
+                  <p className={`text-xs mt-0.5 font-semibold ${active ? 'text-white/80' : 'text-slate-400'}`}>{count} words</p>
                 </button>
               );
             })}
           </div>
 
           <div className="text-center mt-10">
-            <p className="text-white/50 text-sm mb-1">{filteredVocab.length} words in selection</p>
-            <p className="text-indigo-400 text-sm font-semibold mb-4">{dueCount} due for review now</p>
+            <p className="text-slate-400 font-bold text-sm mb-1">{filteredVocab.length} words in selection</p>
+            <p className="text-indigo-500 text-sm font-black mb-4">{dueCount} due for review now</p>
             <button
               onClick={startDrill} disabled={filteredVocab.length === 0}
-              className="w-full max-w-sm mx-auto bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.98] text-lg block"
+              className="w-full max-w-sm mx-auto bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black py-4 rounded-[2rem] transition-all shadow-[0_4px_14px_rgba(99,102,241,0.4)] hover:shadow-[0_6px_20px_rgba(99,102,241,0.5)] active:scale-[0.96] text-lg block"
             >
               {dueCount > 0 ? `Start Drill → ${dueCount} due` : "Start Drill →"}
             </button>
@@ -627,20 +624,12 @@ export default function WordDrill() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0F172A] text-white flex flex-col items-center justify-center p-4">
-      <div className="max-w-md w-full glassmorphism p-8 rounded-2xl shadow-2xl border border-white/10 relative overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"></div>
-
-        <header className="mb-10 text-center relative">
-          <Link
-            href="/"
-            className="absolute left-0 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10"
-            title="Back to Hub"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-          </Link>
-          <p className="text-xs uppercase tracking-widest text-indigo-400 font-semibold mb-2">Drill Mode · SM-2</p>
-          <h1 className="text-3xl font-bold tracking-tight">Translate</h1>
+    <main className="min-h-screen flex flex-col items-center justify-center p-4 pb-24">
+      <div className="max-w-md w-full cutesy-glass p-8 rounded-[2.5rem] shadow-[0_12px_40px_rgba(99,102,241,0.2)] border-2 border-white/80 relative overflow-hidden">
+        
+        <header className="mb-8 text-center relative pt-2">
+          <p className="text-xs uppercase tracking-widest text-indigo-400 font-bold mb-2">Drill Mode · SM-2</p>
+          <h1 className="text-3xl font-black text-slate-700 tracking-tight">Translate</h1>
         </header>
 
         {caughtUp && (
@@ -657,10 +646,10 @@ export default function WordDrill() {
         {!caughtUp && currentPrompt && (
           <>
             <section className="text-center mb-8">
-              <h2 className="text-4xl font-black text-white mb-6 tracking-tight drop-shadow-md">{currentPrompt.word}</h2>
+              <h2 className="text-4xl font-black text-slate-700 mb-6 tracking-tight drop-shadow-sm">{currentPrompt.word}</h2>
               <div className="flex flex-wrap items-center justify-center gap-2">
                 {currentPrompt.constraints.map((c: string, idx: number) => (
-                  <span key={idx} className="bg-indigo-500/20 text-indigo-100 text-xs sm:text-sm font-medium px-3 py-1 rounded-full border border-indigo-400/30 backdrop-blur-sm shadow-sm">
+                  <span key={idx} className="bg-indigo-100 text-indigo-600 text-xs sm:text-sm font-bold px-3 py-1.5 rounded-full shadow-sm border border-indigo-200">
                     {c}
                   </span>
                 ))}
@@ -682,12 +671,12 @@ export default function WordDrill() {
                 ref={inputRef}
                 disabled={!!feedback}
                 autoComplete="off"
-                className="w-full bg-black/30 border border-white/10 focus:border-indigo-500 outline-none rounded-xl px-4 py-4 text-center text-xl transition-all disabled:opacity-50"
+                className="w-full bg-white border-2 border-indigo-100 focus:border-indigo-300 focus:ring-4 focus:ring-indigo-100 outline-none rounded-2xl px-4 py-4 text-center text-xl font-bold text-slate-700 transition-all disabled:opacity-50 shadow-inner"
                 placeholder="Type your answer..."
               />
 
               {!feedback && (
-                <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-indigo-500/20 active:scale-[0.98]">
+                <button type="submit" className="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-black py-4 rounded-[2rem] transition-all shadow-[0_4px_14px_rgba(99,102,241,0.4)] hover:shadow-[0_6px_20px_rgba(99,102,241,0.5)] active:scale-[0.96]">
                   {userInput.trim() === "" ? "I don't know (Show Answer)" : "Check"}
                 </button>
               )}
@@ -698,53 +687,54 @@ export default function WordDrill() {
                 <button
                   type="button"
                   onClick={generatePrompt}
-                  className="w-full bg-white text-black font-bold py-4 rounded-xl transition-colors hover:bg-gray-100 active:scale-[0.98]"
+                  className="w-full bg-slate-800 text-white font-black py-4 rounded-[2rem] transition-all hover:bg-slate-700 active:scale-[0.96] shadow-md"
                 >
                   Next Word (Press Enter)
                 </button>
 
-                <div className={`p-4 rounded-xl text-center font-medium animate-in fade-in slide-in-from-bottom-2 ${feedback.score === 1.0 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/20" :
-                  feedback.score > 0 ? "bg-amber-500/20  text-amber-400  border border-amber-500/20" :
-                    "bg-rose-500/20   text-rose-400   border border-rose-500/20"
+                <div className={`p-4 rounded-[2rem] text-center font-bold animate-in fade-in slide-in-from-bottom-2 border-2 ${
+                  feedback.score === 1.0 ? "bg-emerald-50 text-emerald-500 border-emerald-200" :
+                  feedback.score > 0 ? "bg-amber-50 text-amber-500 border-amber-200" :
+                  "bg-rose-50 text-rose-500 border-rose-200"
                   }`}>
-                  {feedback.score === 1.0 && <p className="text-lg">Perfect! ✓</p>}
+                  {feedback.score === 1.0 && <p className="text-lg">Perfect! <span className="text-xl">✨</span></p>}
                   {feedback.score > 0 && feedback.score < 1.0 && <p className="text-lg">Almost! ½</p>}
                   {feedback.score === 0.0 && <p className="text-lg">Incorrect!</p>}
                   {feedback.score < 1.0 && (
-                    <p className="mt-2 text-sm text-white/70">
-                      Expected: <span className="font-bold text-white">{feedback.expected}</span>
+                    <p className="mt-2 text-sm text-slate-500 font-medium">
+                      Expected: <span className="font-black text-slate-700">{feedback.expected}</span>
                     </p>
                   )}
 
                   {/* Mnemonic Creation Section */}
-                  <div className="mt-4 pt-4 border-t border-white/10 text-sm">
+                  <div className="mt-4 pt-4 border-t border-slate-200/50 text-sm">
                     {!mnemonic && !isGeneratingMnemonic && (
                       <button
                         type="button"
                         onClick={handleGenerateMnemonic}
-                        className="flex items-center justify-center gap-2 mx-auto text-indigo-400 hover:text-indigo-300 transition-colors font-medium bg-indigo-500/10 hover:bg-indigo-500/20 px-4 py-2 rounded-lg"
+                        className="flex items-center justify-center gap-2 mx-auto text-indigo-500 hover:text-indigo-400 transition-colors font-bold bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-xl"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" /></svg>
                         Create Mnemonic
                       </button>
                     )}
 
                     {isGeneratingMnemonic && (
-                      <div className="flex items-center justify-center gap-2 text-white/50 py-2">
-                        <div className="w-4 h-4 border-2 border-white/20 border-t-indigo-400 rounded-full animate-spin"></div>
+                      <div className="flex items-center justify-center gap-2 text-indigo-400 py-2 font-bold">
+                        <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin"></div>
                         Generating hook...
                       </div>
                     )}
 
                     {mnemonic && (
-                      <div className="bg-black/40 border border-indigo-500/20 rounded-xl p-4 text-left animate-in fade-in slide-in-from-bottom-2">
-                        <div className="flex items-center gap-2 mb-2 text-indigo-400 font-semibold border-b border-indigo-500/20 pb-2">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" /><path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /></svg>
+                      <div className="bg-white border text-slate-600 border-indigo-100 rounded-2xl p-4 text-left shadow-sm animate-in fade-in slide-in-from-bottom-2">
+                        <div className="flex items-center gap-2 mb-2 text-indigo-500 font-black border-b border-indigo-50 pb-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" /><path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /></svg>
                           Memory Hook
                         </div>
                         <div
-                          className="text-white/90 prose prose-invert prose-sm max-w-none leading-relaxed"
-                          dangerouslySetInnerHTML={{ __html: mnemonic.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-300">$1</strong>') }}
+                          className="prose prose-sm max-w-none leading-relaxed font-medium"
+                          dangerouslySetInnerHTML={{ __html: mnemonic.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-600 font-black">$1</strong>') }}
                         />
                       </div>
                     )}
@@ -753,9 +743,9 @@ export default function WordDrill() {
                   <button
                     type="button"
                     onClick={openDictionaryForCurrentWord}
-                    className="mt-4 flex items-center justify-center gap-2 mx-auto text-sm text-white/50 hover:text-white transition-colors hover:bg-white/5 px-3 py-1.5 rounded-lg"
+                    className="mt-4 flex items-center justify-center gap-2 mx-auto text-sm text-slate-400 hover:text-indigo-500 font-bold transition-colors hover:bg-indigo-50 px-3 py-1.5 rounded-xl"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
                     View Grammar Details
                   </button>
                 </div>

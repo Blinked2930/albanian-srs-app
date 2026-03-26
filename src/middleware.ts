@@ -2,30 +2,23 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(req: NextRequest) {
-  // Grab the authorization header from the incoming request
-  const basicAuth = req.headers.get('authorization');
+  const { pathname } = req.nextUrl;
 
-  if (basicAuth) {
-    const authValue = basicAuth.split(' ')[1];
-    const [user, pwd] = atob(authValue).split(':');
-
-    // Pull the secure credentials from your environment variables
-    const validUser = process.env.BASIC_AUTH_USER;
-    const validPass = process.env.BASIC_AUTH_PASS;
-
-    // Check that the environment variables exist AND that the user input matches them
-    if (validUser && validPass && user === validUser && pwd === validPass) {
-      return NextResponse.next();
-    }
+  // Allow unrestricted access to the login page and the login API
+  if (pathname === '/login' || pathname === '/api/auth/login') {
+    return NextResponse.next();
   }
 
-  // If no auth header or wrong credentials, trigger the browser's native login popup
-  return new NextResponse('Authentication required to access this application.', {
-    status: 401,
-    headers: {
-      'WWW-Authenticate': 'Basic realm="Secure Area"',
-    },
-  });
+  // Check for the authentication cookie
+  const authToken = req.cookies.get('srs_auth_token')?.value;
+
+  if (authToken === 'authenticated') {
+    return NextResponse.next();
+  }
+
+  // If not authenticated, redirect to the login page
+  const loginUrl = new URL('/login', req.url);
+  return NextResponse.redirect(loginUrl);
 }
 
 // This config tells the middleware to protect EVERY page, 

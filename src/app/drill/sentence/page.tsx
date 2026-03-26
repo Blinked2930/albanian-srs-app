@@ -342,9 +342,9 @@ export default function SentenceDrill() {
 
   if (phase === "loading") {
     return (
-      <main className="min-h-screen bg-[#0F172A] text-white flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4 text-white/40">
-          <div className="w-8 h-8 border-4 border-white/20 border-t-emerald-400 rounded-full animate-spin"></div>
+      <main className="min-h-screen flex items-center justify-center pb-20">
+        <div className="flex flex-col items-center gap-4 text-slate-400 font-bold">
+          <div className="w-8 h-8 border-4 border-slate-200 border-t-emerald-400 rounded-full animate-spin"></div>
           <p className="text-sm">Loading context drills...</p>
         </div>
       </main>
@@ -355,30 +355,27 @@ export default function SentenceDrill() {
     const dueCount = dbVocabRef.current.filter(w => !w.next_review || new Date(w.next_review) <= new Date()).length;
 
     return (
-      <main className="min-h-screen bg-[#0F172A] text-white flex flex-col items-center justify-center p-6">
+      <main className="min-h-screen flex flex-col items-center p-6 pt-12 pb-24">
         <div className="max-w-3xl w-full">
           <div className="flex items-center gap-4 mb-8">
-            <Link href="/" className="text-white/40 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-            </Link>
             <div>
-              <p className="text-xs uppercase tracking-widest text-emerald-400 font-semibold">Context Drill · SM-2</p>
-              <h1 className="text-2xl font-bold">Sentence Immersion</h1>
+              <p className="text-xs uppercase tracking-widest text-emerald-500 font-bold">Context Drill · SM-2</p>
+              <h1 className="text-3xl font-black text-slate-700 tracking-tight">Sentence Immersion</h1>
             </div>
           </div>
 
-          <div className="glassmorphism p-8 rounded-2xl border border-white/10 text-center mb-8">
-            <h2 className="text-4xl font-black mb-2">{dbVocabRef.current.length}</h2>
-            <p className="text-white/50 mb-6">Words with available sentences</p>
+          <div className="cutesy-glass p-8 rounded-[2rem] border-2 border-white/80 shadow-md text-center mb-8">
+            <h2 className="text-5xl font-black mb-2 text-slate-700">{dbVocabRef.current.length}</h2>
+            <p className="text-slate-400 font-bold mb-6">Words with available sentences</p>
 
-            <p className="text-emerald-400 font-medium mb-6">
+            <p className="text-emerald-500 font-black mb-6">
               {dueCount > 0 ? `${dueCount} ready for review right now.` : `No sentences currently due.`}
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto">
               <button
                 onClick={startDrill} disabled={dbVocabRef.current.length === 0}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] text-lg block"
+                className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black py-4 rounded-[2rem] transition-all shadow-md hover:shadow-lg active:scale-[0.96] text-lg block"
               >
                 {dueCount > 0 ? `Start Context Drill` : "Start Context Drill"}
               </button>
@@ -386,16 +383,16 @@ export default function SentenceDrill() {
               <button
                 onClick={handleGenerateSentences}
                 disabled={isGenerating}
-                className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-4 rounded-xl transition-colors flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50 text-sm"
+                className="w-full bg-slate-100 hover:bg-slate-200 border-2 border-white text-slate-600 font-bold py-4 rounded-[2rem] transition-colors flex flex-col items-center justify-center gap-1 active:scale-95 disabled:opacity-50 text-sm shadow-sm"
               >
                 {isGenerating ? (
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/20 border-t-emerald-400 rounded-full animate-spin"></div>
+                    <div className="w-4 h-4 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin"></div>
                     Generating...
                   </div>
                 ) : (
                   <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" className="text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /><path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" className="text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /><path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" /></svg>
                     Generate More Sentences
                   </>
                 )}
@@ -408,45 +405,33 @@ export default function SentenceDrill() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0F172A] text-white flex flex-col items-center justify-center p-4">
-      <div className="max-w-xl w-full glassmorphism p-8 rounded-2xl shadow-2xl border border-white/10 relative overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none"></div>
-
-        <header className="mb-10 text-center relative">
-          <Link
-            href="/"
-            className="absolute left-0 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10"
-            title="Back to Hub"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-          </Link>
-          <p className="text-xs uppercase tracking-widest text-emerald-400 font-semibold mb-2">Context Drill</p>
-          <h1 className="text-3xl font-bold tracking-tight">Fill the Blank</h1>
+    <main className="min-h-screen flex flex-col items-center justify-center p-4 pb-24">
+      <div className="max-w-xl w-full cutesy-glass p-8 rounded-[2.5rem] shadow-[0_12px_40px_rgba(16,185,129,0.2)] border-2 border-white/80 relative overflow-hidden">
+        
+        <header className="mb-8 text-center relative pt-2">
+          <p className="text-xs uppercase tracking-widest text-emerald-500 font-bold mb-2">Context Drill</p>
+          <h1 className="text-3xl font-black text-slate-700 tracking-tight">Fill the Blank</h1>
         </header>
 
         {caughtUp && (
           <div className="text-center py-10">
             <p className="text-4xl mb-4">🎉</p>
-            <p className="text-xl font-bold text-emerald-400 mb-2">All caught up!</p>
-            <p className="text-white/50 text-sm mb-8">You've completed all available context drills.</p>
+            <p className="text-2xl font-black text-emerald-500 mb-2">All caught up!</p>
+            <p className="text-slate-500 font-bold text-sm mb-8">You've completed all available context drills.</p>
 
             <div className="flex flex-col gap-4 max-w-xs mx-auto">
               <button
                 onClick={handleGenerateSentences}
                 disabled={isGenerating}
-                className="w-full bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 font-medium py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                className="w-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 font-black py-4 rounded-[2rem] transition-colors flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 shadow-sm"
               >
                 {isGenerating ? (
-                  <div className="w-5 h-5 border-2 border-emerald-400/20 border-t-emerald-400 rounded-full animate-spin"></div>
+                  <div className="w-5 h-5 border-2 border-emerald-400 border-t-emerald-600 rounded-full animate-spin"></div>
                 ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /></svg>
                 )}
                 {isGenerating ? "Generating..." : "Generate Sentences"}
               </button>
-
-              <Link href="/" className="bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-6 rounded-xl transition-colors inline-block w-full">
-                ← Back to Hub
-              </Link>
             </div>
           </div>
         )}
@@ -461,9 +446,8 @@ export default function SentenceDrill() {
               }}
               className="flex flex-col w-full"
             >
-              {/* Inline Sentence Input Section */}
               <div className="text-center mb-10">
-                <div className="text-2xl sm:text-3xl font-medium text-white/90 mb-4 leading-loose drop-shadow-md block">
+                <div className="text-2xl sm:text-3xl font-black text-slate-700 mb-4 leading-loose drop-shadow-sm block">
                   {sentenceParts[0]}
                   <input
                     key={`input-${currentPrompt?.promptId}`}
@@ -481,21 +465,21 @@ export default function SentenceDrill() {
                     autoComplete="off"
                     autoCorrect="off"
                     spellCheck="false"
-                    className="inline-block mx-2 w-32 sm:w-40 bg-black/30 border-b-2 border-x-0 border-t-0 border-emerald-500 focus:border-emerald-400 focus:bg-white/5 outline-none px-2 py-1 text-center text-emerald-400 font-bold transition-all disabled:opacity-50"
+                    className="inline-block mx-2 w-32 sm:w-40 bg-white/50 border-b-4 border-x-0 border-t-0 border-emerald-300 focus:border-emerald-500 focus:bg-white outline-none px-2 py-1 text-center text-emerald-600 font-black transition-all disabled:opacity-50"
                     autoFocus
                   />
                   {sentenceParts[1]}
                 </div>
 
                 <div className="inline-flex mt-2 items-center justify-center gap-2">
-                  <span className="text-white/40 text-xs uppercase tracking-widest">Target:</span>
+                  <span className="text-slate-400 font-bold text-xs uppercase tracking-widest">Target:</span>
                   {showTarget ? (
-                    <span className="text-emerald-400 font-semibold animate-in fade-in">{currentPrompt.target_english}</span>
+                    <span className="text-emerald-500 font-black animate-in fade-in">{currentPrompt.target_english}</span>
                   ) : (
                     <button
                       type="button"
                       onClick={() => setShowTarget(true)}
-                      className="text-xs bg-white/10 hover:bg-white/20 text-white/70 px-2 py-1 rounded transition-colors border border-white/10"
+                      className="text-xs bg-white text-slate-500 font-bold px-3 py-1.5 rounded-full transition-colors border-2 border-slate-200 shadow-sm"
                     >
                       Reveal
                     </button>
@@ -507,73 +491,72 @@ export default function SentenceDrill() {
                 <button
                   type="button"
                   onClick={handleCheck}
-                  className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-emerald-500/20 active:scale-[0.98]">
+                  className="w-full mt-4 bg-emerald-500 hover:bg-emerald-400 text-white font-black py-4 rounded-[2rem] transition-all shadow-[0_4px_14px_rgba(16,185,129,0.4)] hover:shadow-[0_6px_20px_rgba(16,185,129,0.5)] active:scale-[0.96]">
                   {userInput.trim() === "" ? "I don't know (Show Answer)" : "Check"}
                 </button>
               )}
 
-              {/* Feedback Section */}
               {feedback && feedback.promptId === currentPrompt?.promptId && (
                 <div className="mt-4 flex flex-col gap-4">
                   <button
                     type="button"
                     onClick={generatePrompt}
-                    className="w-full bg-white text-black font-bold py-4 rounded-xl transition-colors hover:bg-gray-100 active:scale-[0.98]"
+                    className="w-full bg-slate-800 text-white font-black py-4 rounded-[2rem] transition-all hover:bg-slate-700 active:scale-[0.96] shadow-md"
                   >
                     Next Sentence (Press Enter)
                   </button>
 
-                  <div className={`p-6 rounded-xl text-center font-medium animate-in fade-in slide-in-from-bottom-2 ${feedback.score === 1.0 ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20" :
-                    feedback.score > 0 ? "bg-amber-500/10  text-amber-300  border border-amber-500/20" :
-                      "bg-rose-500/10   text-rose-300   border border-rose-500/20"
+                  <div className={`p-6 rounded-[2rem] text-center font-bold animate-in fade-in slide-in-from-bottom-2 border-2 ${
+                    feedback.score === 1.0 ? "bg-emerald-50 text-emerald-500 border-emerald-200" :
+                    feedback.score > 0 ? "bg-amber-50 text-amber-500 border-amber-200" :
+                    "bg-rose-50 text-rose-500 border-rose-200"
                     }`}>
-                    {feedback.score === 1.0 && <p className="text-lg font-bold mb-2">Perfect! ✓</p>}
-                    {feedback.score > 0 && feedback.score < 1.0 && <p className="text-lg font-bold mb-2">Almost! ½</p>}
-                    {feedback.score === 0.0 && <p className="text-lg font-bold mb-2">Incorrect!</p>}
+                    {feedback.score === 1.0 && <p className="text-lg font-black mb-2">Perfect! <span className="text-xl">✨</span></p>}
+                    {feedback.score > 0 && feedback.score < 1.0 && <p className="text-lg font-black mb-2">Almost! ½</p>}
+                    {feedback.score === 0.0 && <p className="text-lg font-black mb-2">Incorrect!</p>}
 
                     {feedback.score < 1.0 && (
-                      <p className="mt-2 text-base text-white/80">
-                        The missing word was: <span className="font-bold text-white">{feedback.expected}</span>
+                      <p className="mt-2 text-base text-slate-500 font-medium">
+                        The missing word was: <span className="font-black text-slate-700">{feedback.expected}</span>
                       </p>
                     )}
 
-                    <div className="mt-4 pt-4 border-t border-white/10 text-sm flex flex-col gap-3">
+                    <div className="mt-4 pt-4 border-t border-slate-200/50 text-sm flex flex-col gap-3">
                       <div>
-                        <p className="text-white/60 mb-1">Full Translation:</p>
-                        <p className="text-white font-medium italic">"{currentPrompt.english_translation}"</p>
+                        <p className="text-slate-400 font-bold mb-1">Full Translation:</p>
+                        <p className="text-slate-700 font-medium italic">"{currentPrompt.english_translation}"</p>
                       </div>
                     </div>
 
-                    {/* Mnemonic Creation Section */}
-                    <div className="mt-4 pt-4 border-t border-white/10 text-sm">
+                  {/* Mnemonic Creation Section */}
+                    <div className="mt-4 pt-4 border-t border-slate-200/50 text-sm">
                       {!mnemonic && !isGeneratingMnemonic && (
                         <button
                           type="button"
                           onClick={handleGenerateMnemonic}
-                          className="flex items-center justify-center gap-2 mx-auto text-emerald-400 hover:text-emerald-300 transition-colors font-medium bg-emerald-500/10 hover:bg-emerald-500/20 px-4 py-2 rounded-lg"
+                          className="flex items-center justify-center gap-2 mx-auto text-emerald-500 hover:text-emerald-400 transition-colors font-bold bg-emerald-50 hover:bg-emerald-100 px-4 py-2 rounded-xl"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" /></svg>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" /></svg>
                           Create Mnemonic
                         </button>
                       )}
 
                       {isGeneratingMnemonic && (
-                        <div className="flex items-center justify-center gap-2 text-white/50 py-2">
-                          <div className="w-4 h-4 border-2 border-white/20 border-t-emerald-400 rounded-full animate-spin"></div>
+                        <div className="flex items-center justify-center gap-2 text-emerald-400 py-2 font-bold">
+                          <div className="w-4 h-4 border-2 border-emerald-200 border-t-emerald-500 rounded-full animate-spin"></div>
                           Generating hook...
                         </div>
                       )}
 
                       {mnemonic && (
-                        <div className="bg-black/40 border border-emerald-500/20 rounded-xl p-4 text-left animate-in fade-in slide-in-from-bottom-2">
-                          <div className="flex items-center gap-2 mb-2 text-emerald-400 font-semibold border-b border-emerald-500/20 pb-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" /><path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /></svg>
+                        <div className="bg-white border text-slate-600 border-emerald-100 rounded-2xl p-4 text-left shadow-sm animate-in fade-in slide-in-from-bottom-2">
+                          <div className="flex items-center gap-2 mb-2 text-emerald-500 font-black border-b border-emerald-50 pb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" /><path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /></svg>
                             Memory Hook
                           </div>
-                          {/* Rendering the simple markdown bold and newlines cleanly */}
                           <div
-                            className="text-white/90 prose prose-invert prose-sm max-w-none leading-relaxed"
-                            dangerouslySetInnerHTML={{ __html: mnemonic.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong class="text-emerald-300">$1</strong>') }}
+                            className="prose prose-sm max-w-none leading-relaxed font-medium"
+                            dangerouslySetInnerHTML={{ __html: mnemonic.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong class="text-emerald-600 font-black">$1</strong>') }}
                           />
                         </div>
                       )}
@@ -582,9 +565,9 @@ export default function SentenceDrill() {
                     <button
                       type="button"
                       onClick={openDictionaryForCurrentWord}
-                      className="mt-2 flex items-center justify-center gap-2 mx-auto text-sm text-white/50 hover:text-white transition-colors hover:bg-white/5 px-3 py-1.5 rounded-lg"
+                      className="mt-4 flex items-center justify-center gap-2 mx-auto text-sm text-slate-400 hover:text-emerald-500 font-bold transition-colors hover:bg-emerald-50 px-3 py-1.5 rounded-xl"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
                       View Grammar Details
                     </button>
                   </div>

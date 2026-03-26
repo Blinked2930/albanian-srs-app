@@ -409,37 +409,33 @@ export default function ManageVocab() {
     });
 
   return (
-    <main className="min-h-screen bg-[#0F172A] text-white p-6 pb-24 relative">
+    <main className="min-h-screen p-6 pt-12 pb-24 relative">
       <div className="max-w-5xl mx-auto z-10 relative">
-        <header className="flex flex-col sm:flex-row sm:justify-between sm:items-end mb-8 gap-4">
+        <header className="flex flex-col sm:flex-row sm:justify-between sm:items-end mb-8 gap-4 pl-2">
           <div>
-            <Link href="/" className="text-indigo-400 hover:text-indigo-300 text-sm font-medium transition-colors inline-flex items-center gap-2 mb-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-              Back to Hub
-            </Link>
-            <h1 className="text-3xl font-bold tracking-tight">Manage Vocab</h1>
+            <h1 className="text-4xl font-black tracking-tight text-slate-700">Manage Vocab</h1>
           </div>
 
           <div className="flex gap-3 flex-wrap sm:flex-nowrap">
             {/* Prompt Config Button */}
             <button
               onClick={() => setIsPromptModalOpen(true)}
-              className="bg-white/10 hover:bg-white/20 text-white font-medium p-2 rounded-lg transition-colors flex items-center justify-center shadow-sm active:scale-95"
+              className="bg-indigo-100 hover:bg-indigo-200 text-indigo-600 font-bold p-3 rounded-[1rem] transition-colors flex items-center justify-center shadow-sm active:scale-95 border border-indigo-200"
               title="Data Pipeline Prompt"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" x2="20" y1="19" y2="19" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" x2="20" y1="19" y2="19" /></svg>
             </button>
 
             <button
               onClick={handleGenerateSentences}
               disabled={isGenerating}
-              className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 active:scale-95 disabled:opacity-50"
+              className="bg-emerald-100 hover:bg-emerald-200 text-emerald-600 border border-emerald-300 font-bold py-2 px-4 rounded-[1rem] transition-colors flex items-center gap-2 active:scale-95 disabled:opacity-50 shadow-sm"
               title="Generate example sentences via AI"
             >
               {isGenerating ? (
-                <div className="w-4 h-4 border-2 border-emerald-400/20 border-t-emerald-400 rounded-full animate-spin"></div>
+                <div className="w-4 h-4 border-2 border-emerald-400 border-t-emerald-600 rounded-full animate-spin"></div>
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /><path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /><path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" /></svg>
               )}
               {isGenerating ? "Generating..." : "Generate Sentences"}
             </button>
@@ -448,106 +444,108 @@ export default function ManageVocab() {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isImporting}
-              className="bg-white/10 hover:bg-white/20 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 active:scale-95 disabled:opacity-50"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-300 font-bold py-2 px-4 rounded-[1rem] transition-colors flex items-center gap-2 active:scale-95 disabled:opacity-50 shadow-sm"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" x2="12" y1="3" y2="15" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" x2="12" y1="3" y2="15" /></svg>
               {isImporting ? "Importing..." : "Import CSV"}
             </button>
 
             <button
               onClick={handleExport}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 shadow-lg shadow-indigo-500/20 active:scale-95"
+              className="bg-indigo-500 hover:bg-indigo-400 text-white font-black py-2 px-5 rounded-[1rem] transition-colors flex items-center gap-2 shadow-[0_4px_14px_rgba(99,102,241,0.4)] active:scale-95"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>
               Export
             </button>
           </div>
         </header>
 
-        <section className="glassmorphism p-6 rounded-2xl border border-white/10 mb-8">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" className="text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+        <section className="cutesy-glass p-6 rounded-[2rem] border-2 border-white/80 shadow-md mb-8">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-700">
+            <div className="bg-indigo-100 p-1.5 rounded-lg text-indigo-500">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+            </div>
             Add Single Word
           </h2>
           <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
             <div className="flex flex-col gap-1 lg:col-span-1">
-              <label className="text-xs text-white/50 uppercase font-semibold tracking-wider">Albanian</label>
-              <input required type="text" value={formData.albanian} onChange={e => setFormData({ ...formData, albanian: e.target.value })} className="bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 transition-colors" placeholder="e.g. Bukur" />
+              <label className="text-xs text-slate-500 uppercase font-black tracking-wider">Albanian</label>
+              <input required type="text" value={formData.albanian} onChange={e => setFormData({ ...formData, albanian: e.target.value })} className="bg-white/60 border-2 border-slate-200 rounded-[1rem] px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 transition-all shadow-inner" placeholder="e.g. Bukur" />
             </div>
             <div className="flex flex-col gap-1 lg:col-span-1">
-              <label className="text-xs text-white/50 uppercase font-semibold tracking-wider">English</label>
-              <input required type="text" value={formData.english} onChange={e => setFormData({ ...formData, english: e.target.value })} className="bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 transition-colors" placeholder="e.g. Beautiful" />
+              <label className="text-xs text-slate-500 uppercase font-black tracking-wider">English</label>
+              <input required type="text" value={formData.english} onChange={e => setFormData({ ...formData, english: e.target.value })} className="bg-white/60 border-2 border-slate-200 rounded-[1rem] px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 transition-all shadow-inner" placeholder="e.g. Beautiful" />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-white/50 uppercase font-semibold tracking-wider">Type</label>
-              <select value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })} className="bg-[#1e293b] border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 transition-colors">
+              <label className="text-xs text-slate-500 uppercase font-black tracking-wider">Type</label>
+              <select value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })} className="bg-white/60 border-2 border-slate-200 rounded-[1rem] px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 transition-all shadow-inner">
                 {mockCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
               </select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-white/50 uppercase font-semibold tracking-wider">Priority (1-10)</label>
-              <input type="number" min="1" max="10" value={formData.usefulness} onChange={e => setFormData({ ...formData, usefulness: e.target.value })} className="bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 transition-colors" placeholder="5" />
+              <label className="text-xs text-slate-500 uppercase font-black tracking-wider">Priority (1-10)</label>
+              <input type="number" min="1" max="10" value={formData.usefulness} onChange={e => setFormData({ ...formData, usefulness: e.target.value })} className="bg-white/60 border-2 border-slate-200 rounded-[1rem] px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 transition-all shadow-inner" placeholder="5" />
             </div>
-            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg transition-colors shadow-lg active:scale-95 h-[38px]">
+            <button type="submit" className="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-black py-2.5 rounded-[1rem] transition-colors shadow-md active:scale-95">
               Add to Queue
             </button>
           </form>
         </section>
 
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-          <div className="relative w-full sm:w-72">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4 px-2">
+          <div className="relative w-full sm:w-80">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
             <input
               type="text"
               placeholder="Search vocabulary..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-black/30 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm outline-none focus:border-indigo-500 transition-colors"
+              className="w-full bg-white/60 border-2 border-slate-200 rounded-[1.5rem] pl-11 pr-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 transition-all shadow-sm"
             />
           </div>
-          <p className="text-sm text-white/50">
-            Showing <span className="text-white">{processedVocab.length}</span> of {vocabList.length} words
+          <p className="text-sm font-bold text-slate-400">
+            Showing <span className="text-indigo-500">{processedVocab.length}</span> of {vocabList.length} words
           </p>
         </div>
 
-        <section className="glassmorphism rounded-2xl border border-white/10 overflow-hidden">
+        <section className="cutesy-glass rounded-[2.5rem] border-2 border-white/80 shadow-md overflow-hidden bg-white/40">
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-white/5 border-b border-white/10 text-xs uppercase tracking-wider text-white/50">
-                  <th className="p-4 font-semibold cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort("albanian")}>
+                <tr className="bg-slate-100/50 border-b-2 border-slate-200/50 text-xs text-slate-500 uppercase tracking-widest">
+                  <th className="p-6 font-black cursor-pointer hover:bg-slate-200/50 transition-colors" onClick={() => handleSort("albanian")}>
                     Albanian <SortIcon columnKey="albanian" />
                   </th>
-                  <th className="p-4 font-semibold cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort("english")}>
+                  <th className="p-6 font-black cursor-pointer hover:bg-slate-200/50 transition-colors" onClick={() => handleSort("english")}>
                     English <SortIcon columnKey="english" />
                   </th>
-                  <th className="p-4 font-semibold cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort("type")}>
+                  <th className="p-6 font-black cursor-pointer hover:bg-slate-200/50 transition-colors" onClick={() => handleSort("type")}>
                     Type <SortIcon columnKey="type" />
                   </th>
-                  <th className="p-4 font-semibold cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort("next_review")}>
+                  <th className="p-6 font-black cursor-pointer hover:bg-slate-200/50 transition-colors whitespace-nowrap" onClick={() => handleSort("next_review")}>
                     Next Review <SortIcon columnKey="next_review" />
                   </th>
-                  <th className="p-4 font-semibold cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort("confidence")}>
+                  <th className="p-6 font-black cursor-pointer hover:bg-slate-200/50 transition-colors" onClick={() => handleSort("confidence")}>
                     Status <SortIcon columnKey="confidence" />
                   </th>
-                  <th className="p-4 font-semibold cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort("mastery_score")}>
+                  <th className="p-6 font-black cursor-pointer hover:bg-slate-200/50 transition-colors whitespace-nowrap" onClick={() => handleSort("mastery_score")}>
                     Mastery & Trend <SortIcon columnKey="mastery_score" />
                   </th>
-                  <th className="p-4 font-semibold text-right">Actions</th>
+                  <th className="p-6 font-black text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5 text-sm">
+              <tbody className="divide-y divide-slate-200/50 text-sm">
                 {loading && (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-white/50">
-                      <div className="w-6 h-6 border-2 border-white/20 border-t-indigo-500 rounded-full animate-spin mx-auto mb-2"></div>
+                    <td colSpan={7} className="p-8 text-center text-slate-400 font-bold">
+                      <div className="w-6 h-6 border-4 border-slate-200 border-t-indigo-400 rounded-full animate-spin mx-auto mb-2"></div>
                       Syncing database...
                     </td>
                   </tr>
                 )}
                 {!loading && processedVocab.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-white/50">
+                    <td colSpan={7} className="p-12 text-center text-slate-400 font-bold">
                       {searchQuery ? "No words match your search." : "No vocabulary found. Add your first word or import a CSV!"}
                     </td>
                   </tr>
@@ -556,44 +554,44 @@ export default function ManageVocab() {
                   <tr
                     key={item.id}
                     onClick={() => setSelectedWord(item)}
-                    className="hover:bg-white/10 transition-colors group cursor-pointer"
+                    className="hover:bg-white/60 transition-colors group cursor-pointer"
                   >
-                    <td className="p-4 font-bold text-white group-hover:text-indigo-300 transition-colors">
+                    <td className="p-6 font-black text-slate-700 group-hover:text-indigo-500 transition-colors text-base">
                       {item.albanian}
                     </td>
-                    <td className="p-4 text-white/70">{item.english}</td>
-                    <td className="p-4">
-                      <span className="bg-white/5 px-2 py-1 rounded border border-white/10 text-xs text-white/70">
+                    <td className="p-6 font-bold text-slate-500 text-base">{item.english}</td>
+                    <td className="p-6">
+                      <span className="bg-slate-100 px-3 py-1.5 rounded-lg border-2 border-slate-200 text-xs font-bold text-slate-600">
                         {item.type || "Unknown"}
                       </span>
                     </td>
-                    <td className="p-4">
+                    <td className="p-6 text-slate-500 font-bold">
                       {formatDue(item.next_review)}
                     </td>
-                    <td className="p-4">
-                      <span className={`px-2 py-1 rounded border text-xs font-semibold whitespace-nowrap
-                        ${item.confidence === 'Mastered' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                          item.confidence === 'Almost' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                            item.confidence === 'Improvement' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' :
-                              'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                    <td className="p-6">
+                      <span className={`px-3 py-1.5 rounded-xl border-2 text-xs font-black whitespace-nowrap shadow-sm
+                        ${item.confidence === 'Mastered' ? 'bg-emerald-50 text-emerald-500 border-emerald-200' :
+                          item.confidence === 'Almost' ? 'bg-amber-50 text-amber-500 border-amber-200' :
+                            item.confidence === 'Improvement' ? 'bg-orange-50 text-orange-500 border-orange-200' :
+                              'bg-indigo-50 text-indigo-500 border-indigo-200'
                         }
-                      `}>
+                       `}>
                         {item.confidence || "New"}
                       </span>
                     </td>
-                    <td className="p-4">
+                    <td className="p-6">
                       <div className="flex items-center gap-3">
-                        <span className="text-xs text-white/50 font-mono w-8">{Math.round((item.mastery_score || 0) * 100)}%</span>
+                        <span className="text-xs text-slate-400 font-black w-8">{Math.round((item.mastery_score || 0) * 100)}%</span>
                         <MiniTrend logs={item.review_logs} />
                       </div>
                     </td>
-                    <td className="p-4 text-right">
+                    <td className="p-6 text-right">
                       <button
                         onClick={(e) => handleDelete(item.id, e)}
-                        className="text-white/30 hover:text-rose-400 transition-colors p-2 rounded-lg hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        className="text-slate-300 hover:text-rose-500 transition-colors p-2.5 rounded-xl hover:bg-rose-50 opacity-0 group-hover:opacity-100 focus:opacity-100"
                         title="Delete word"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
                       </button>
                     </td>
                   </tr>
@@ -616,60 +614,62 @@ export default function ManageVocab() {
       {/* Prompt Modal Overlay */}
       {isPromptModalOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6"
+          className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6"
           onClick={() => !isEditingPrompt && setIsPromptModalOpen(false)}
         >
           <div
-            className="bg-[#0F172A] border border-white/10 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl"
+            className="bg-white border-4 border-slate-100 rounded-[2.5rem] w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
-            <header className="flex justify-between items-center p-4 sm:px-6 sm:py-4 border-b border-white/10">
-              <h3 className="text-lg font-bold flex items-center gap-2 text-white">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" className="text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" x2="20" y1="19" y2="19" /></svg>
+            <header className="flex justify-between items-center p-6 border-b-2 border-slate-100">
+              <h3 className="text-xl font-black flex items-center gap-3 text-slate-700">
+                <div className="bg-emerald-100 p-2 rounded-xl text-emerald-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" x2="20" y1="19" y2="19" /></svg>
+                </div>
                 Data Pipeline Prompt
               </h3>
               <button
                 onClick={() => setIsPromptModalOpen(false)}
-                className="text-white/50 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors"
+                className="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors"
                 title="Close"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </header>
 
-            <div className="flex-1 overflow-hidden flex flex-col p-4 sm:p-6 bg-black/20">
+            <div className="flex-1 overflow-hidden flex flex-col p-6 bg-slate-50/50">
               {isEditingPrompt ? (
                 <textarea
                   value={editedPrompt}
                   onChange={e => setEditedPrompt(e.target.value)}
                   spellCheck={false}
-                  className="flex-1 w-full bg-black/50 border border-indigo-500/50 focus:border-indigo-400 outline-none rounded-xl p-4 font-mono text-xs sm:text-sm text-emerald-300 resize-none transition-colors shadow-inner"
+                  className="flex-1 w-full bg-white border-2 border-indigo-200 focus:border-indigo-400 outline-none rounded-[1.5rem] p-5 font-mono text-sm text-slate-700 resize-none transition-all shadow-inner focus:ring-4 focus:ring-indigo-50"
                 />
               ) : (
-                <div className="flex-1 w-full bg-black/50 border border-white/10 rounded-xl p-4 overflow-auto font-mono text-xs sm:text-sm text-emerald-300/80 whitespace-pre-wrap shadow-inner leading-relaxed">
+                <div className="flex-1 w-full bg-white border-2 border-slate-200 rounded-[1.5rem] p-5 overflow-auto font-mono text-sm text-slate-600 whitespace-pre-wrap shadow-inner leading-relaxed">
                   {systemPrompt || "Loading prompt..."}
                 </div>
               )}
             </div>
 
-            <footer className="p-4 sm:px-6 sm:py-4 border-t border-white/10 flex justify-end gap-3 bg-white/5 rounded-b-2xl">
+            <footer className="p-6 border-t-2 border-slate-100 flex justify-end gap-3 bg-white rounded-b-[2.5rem]">
               {isEditingPrompt ? (
                 <>
                   <button
                     onClick={() => { setIsEditingPrompt(false); setEditedPrompt(systemPrompt); }}
-                    className="px-4 py-2 rounded-lg font-medium bg-white/5 hover:bg-white/10 text-white transition-colors"
+                    className="px-5 py-3 rounded-[1.5rem] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors active:scale-95"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSavePrompt}
                     disabled={isSavingPrompt}
-                    className="px-4 py-2 rounded-lg font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors flex items-center gap-2 shadow-lg active:scale-95 disabled:opacity-50"
+                    className="px-5 py-3 rounded-[1.5rem] font-black bg-indigo-500 hover:bg-indigo-400 text-white transition-all flex items-center gap-2 shadow-md active:scale-95 disabled:opacity-50"
                   >
                     {isSavingPrompt ? (
-                      <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                      <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
                     ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
                     )}
                     {isSavingPrompt ? "Saving..." : "Save Changes"}
                   </button>
@@ -678,23 +678,23 @@ export default function ManageVocab() {
                 <>
                   <button
                     onClick={() => setIsEditingPrompt(true)}
-                    className="px-4 py-2 rounded-lg font-medium bg-white/5 hover:bg-white/10 text-white transition-colors flex items-center gap-2 active:scale-95"
+                    className="px-5 py-3 rounded-[1.5rem] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors flex items-center gap-2 active:scale-95"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                     Edit
                   </button>
                   <button
                     onClick={handleCopyPrompt}
-                    className="px-4 py-2 rounded-lg font-medium bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-400 transition-colors flex items-center gap-2 active:scale-95"
+                    className="px-5 py-3 rounded-[1.5rem] font-bold bg-emerald-100 hover:bg-emerald-200 border-2 border-emerald-200 text-emerald-600 transition-colors flex items-center gap-2 active:scale-95"
                   >
                     {copySuccess ? (
                       <>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                         Copied!
                       </>
                     ) : (
                       <>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
                         Copy to Clipboard
                       </>
                     )}
