@@ -509,7 +509,80 @@ export default function ManageVocab() {
         </div>
 
         <section className="cutesy-glass rounded-[2.5rem] border-2 border-white/80 shadow-md overflow-hidden bg-white/40">
-          <div className="overflow-x-auto">
+          {/* Mobile: card list (much easier to scan/tap than the full table) */}
+          <div className="md:hidden px-4 py-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-10">
+                <div className="w-7 h-7 border-4 border-slate-200 border-t-indigo-400 rounded-full animate-spin" />
+              </div>
+            ) : !loading && processedVocab.length === 0 ? (
+              <div className="text-center py-10 px-2 text-slate-400 font-bold text-sm">
+                {searchQuery ? "No words match your search." : "No vocabulary found. Add your first word or import a CSV!"}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {processedVocab.map(item => (
+                  <div
+                    key={item.id}
+                    onClick={() => setSelectedWord(item)}
+                    className="cursor-pointer p-4 rounded-[1.5rem] border-2 border-white/60 bg-white/30 shadow-sm hover:bg-white/40 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-lg font-black text-slate-700">{item.albanian}</div>
+                        <div className="text-sm font-bold text-slate-500">{item.english}</div>
+                      </div>
+                      <button
+                        onClick={(e) => handleDelete(item.id, e)}
+                        className="text-slate-300 hover:text-rose-500 transition-colors p-2 rounded-xl hover:bg-rose-50"
+                        title="Delete word"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18" />
+                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                          <line x1="10" x2="10" y1="11" y2="17" />
+                          <line x1="14" x2="14" y1="11" y2="17" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                      <span className="bg-slate-100 px-3 py-1 rounded-lg border-2 border-slate-200 text-xs font-bold text-slate-600">
+                        {item.type || "Unknown"}
+                      </span>
+                      <span
+                        className={`px-3 py-1 rounded-xl border-2 text-xs font-black whitespace-nowrap shadow-sm ${
+                          item.confidence === "Mastered"
+                            ? "bg-emerald-50 text-emerald-500 border-emerald-200"
+                            : item.confidence === "Almost"
+                              ? "bg-amber-50 text-amber-500 border-amber-200"
+                              : item.confidence === "Improvement"
+                                ? "bg-orange-50 text-orange-500 border-orange-200"
+                                : "bg-indigo-50 text-indigo-500 border-indigo-200"
+                        }`}
+                      >
+                        {item.confidence || "New"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 mt-3">
+                      <div className="text-xs font-bold text-slate-500">{formatDue(item.next_review)}</div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-slate-400 font-black w-10 text-right">
+                          {Math.round((item.mastery_score || 0) * 100)}%
+                        </span>
+                        <MiniTrend logs={item.review_logs} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Desktop/tablet: keep the existing table */}
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-100/50 border-b-2 border-slate-200/50 text-xs text-slate-500 uppercase tracking-widest">

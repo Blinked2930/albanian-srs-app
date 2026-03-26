@@ -14,7 +14,7 @@ const getSupabase = () => {
 
 interface ChartData {
   name: string;
-  mastery: number;
+  avgScore: number;
   wordsReviewed: number;
 }
 
@@ -114,7 +114,7 @@ export default function Dashboard() {
       const finalChartData: ChartData[] = Object.keys(aggregatedChart).map(key => ({
         name: key,
         wordsReviewed: aggregatedChart[key].count,
-        mastery: aggregatedChart[key].count > 0 
+        avgScore: aggregatedChart[key].count > 0 
           ? Number((aggregatedChart[key].totalScore / aggregatedChart[key].count).toFixed(2)) 
           : 0
       }));
@@ -148,9 +148,6 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
               {/* Top Level KPIs */}
               <div className="cutesy-glass p-8 rounded-[2rem] border-2 border-white/80 shadow-md flex flex-col justify-center relative overflow-hidden group hover:scale-[1.02] transition-transform">
-                <div className="absolute top-0 right-0 p-4 opacity-10 text-indigo-500">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
-                </div>
                 <h3 className="text-xs uppercase tracking-widest text-slate-400 mb-2 font-bold">Total Words Learned</h3>
                 <p className="text-6xl font-black text-indigo-500 drop-shadow-sm">{kpis.totalWords}</p>
               </div>
@@ -175,9 +172,12 @@ export default function Dashboard() {
                   <div className="bg-amber-100 p-2 rounded-xl text-amber-500">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                   </div>
-                  7-Day Mastery Trajectory
+                  7-Day Review Accuracy
                 </h2>
               </div>
+              <p className="text-sm font-bold text-slate-400 mb-6">
+                This chart shows the average review score of your drills (0.0 to 1.0). Your global mastery score is calculated separately from your stored `mastery_score` values.
+              </p>
               <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -191,10 +191,11 @@ export default function Dashboard() {
                     <XAxis dataKey="name" stroke="#94a3b8" axisLine={false} tickLine={false} dy={10} tick={{fontWeight: 'bold', fontSize: 12}} />
                     <YAxis stroke="#94a3b8" axisLine={false} tickLine={false} dx={-20} domain={[0, 1]} tick={{fontWeight: 'bold', fontSize: 12}} />
                     <Tooltip 
+                      formatter={(value: number) => [`${value.toFixed(2)}`, "Avg score"]}
                       contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #f1f5f9', borderRadius: '16px', color: '#334155', fontWeight: 'bold' }}
                       itemStyle={{ color: '#f59e0b', fontWeight: '900' }} 
                     />
-                    <Area type="monotone" dataKey="mastery" stroke="#f59e0b" strokeWidth={5} fillOpacity={1} fill="url(#colorMastery)" />
+                    <Area type="monotone" dataKey="avgScore" stroke="#f59e0b" strokeWidth={5} fillOpacity={1} fill="url(#colorMastery)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>

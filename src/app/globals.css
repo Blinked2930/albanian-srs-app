@@ -5,6 +5,10 @@
   --foreground: #4A5568; /* Soft slate/gray for text */
 }
 
+html {
+  background: var(--background);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -16,10 +20,17 @@ body {
   background: var(--background);
   background-image: radial-gradient(circle at top right, #FFE4E1 0%, transparent 40%),
                     radial-gradient(circle at bottom left, #E6E6FA 0%, transparent 40%);
-  background-attachment: fixed;
+  /* `fixed` can cause "banding"/white corners on mobile browsers. */
+  background-attachment: scroll;
   color: var(--foreground);
   font-family: var(--font-sans);
   overflow-x: hidden;
+}
+
+@media (min-width: 641px) {
+  body {
+    background-attachment: fixed;
+  }
 }
 
 @layer utilities {

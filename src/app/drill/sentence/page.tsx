@@ -355,7 +355,7 @@ export default function SentenceDrill() {
     const dueCount = dbVocabRef.current.filter(w => !w.next_review || new Date(w.next_review) <= new Date()).length;
 
     return (
-      <main className="min-h-screen flex flex-col items-center p-6 pt-12 pb-24">
+      <main className="min-h-screen flex flex-col items-center p-6 pt-12 pb-32">
         <div className="max-w-3xl w-full">
           <div className="flex items-center gap-4 mb-8">
             <div>
@@ -405,7 +405,7 @@ export default function SentenceDrill() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-4 pb-24">
+    <main className="min-h-screen flex flex-col items-center justify-center p-4 pb-32">
       <div className="max-w-xl w-full cutesy-glass p-8 rounded-[2.5rem] shadow-[0_12px_40px_rgba(16,185,129,0.2)] border-2 border-white/80 relative overflow-hidden">
         
         <header className="mb-8 text-center relative pt-2">

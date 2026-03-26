@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f472b6"/>
+      <stop offset="1" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded-square background -->
+  <rect x="0" y="0" width="512" height="512" rx="120" fill="url(#g)"/>
+
+  <!-- Stylized "C" using a thick stroked path -->
+  <path
+    d="M392 176
+       C365 148 320 128 276 128
+       C193 128 128 193 128 276
+       C128 359 193 424 276 424
+       C320 424 365 404 392 376"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="52"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Inner curve to reinforce the shape -->
+  <path
+    d="M356 212
+       C338 193 309 180 277 180
+       C220 180 172 228 172 285
+       C172 342 220 390 277 390
+       C309 390 338 377 356 358"
+    fill="none"
+    stroke="#ffffff"
+    stroke-opacity="0.85"
+    stroke-width="22"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
+

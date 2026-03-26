@@ -568,7 +568,7 @@ export default function WordDrill() {
     const dueCount = filteredVocab.filter(w => !w.next_review || new Date(w.next_review) <= new Date()).length;
 
     return (
-      <main className="min-h-screen flex flex-col items-center p-6 pt-12 pb-24">
+      <main className="min-h-screen flex flex-col items-center p-6 pt-12 pb-32">
         <div className="max-w-3xl w-full">
           <div className="flex items-center gap-4 mb-8">
             <div>
@@ -577,7 +577,7 @@ export default function WordDrill() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mb-6 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 mb-5 sm:grid-cols-3">
             {TYPE_FILTERS.map(filter => {
               const count = dbVocab.filter(w => filter.match(w.type)).length;
               const active = selectedFilters.has(filter.id);
@@ -592,7 +592,7 @@ export default function WordDrill() {
                       toggleFilter(filter.id);
                     }
                   }}
-                  className={`relative p-4 rounded-[1.5rem] border-2 text-left touch-none transition-all duration-200 ${active ? `bg-gradient-to-br ${filter.color} border-transparent shadow-lg scale-[1.02] text-white` : `bg-white border-slate-100 hover:bg-slate-50 hover:scale-[1.01] text-slate-700 shadow-sm`
+                  className={`relative p-3 rounded-[1.25rem] border-2 text-left touch-none transition-all duration-200 ${active ? `bg-gradient-to-br ${filter.color} border-transparent shadow-lg scale-[1.02] text-white` : `bg-white border-slate-100 hover:bg-slate-50 hover:scale-[1.01] text-slate-700 shadow-sm`
                     }`}
                 >
                   {active && (
@@ -600,9 +600,9 @@ export default function WordDrill() {
                       <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                     </div>
                   )}
-                  <span className="text-3xl mb-2 block">{filter.emoji}</span>
-                  <p className="font-bold text-sm">{filter.label}</p>
-                  <p className={`text-xs mt-0.5 font-semibold ${active ? 'text-white/80' : 'text-slate-400'}`}>{count} words</p>
+                  <span className="text-2xl mb-1 block">{filter.emoji}</span>
+                  <p className="font-bold text-xs sm:text-sm">{filter.label}</p>
+                  <p className={`text-[10px] mt-0.5 font-semibold ${active ? 'text-white/80' : 'text-slate-400'}`}>{count} words</p>
                 </button>
               );
             })}
@@ -613,7 +613,7 @@ export default function WordDrill() {
             <p className="text-indigo-500 text-sm font-black mb-4">{dueCount} due for review now</p>
             <button
               onClick={startDrill} disabled={filteredVocab.length === 0}
-              className="w-full max-w-sm mx-auto bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black py-4 rounded-[2rem] transition-all shadow-[0_4px_14px_rgba(99,102,241,0.4)] hover:shadow-[0_6px_20px_rgba(99,102,241,0.5)] active:scale-[0.96] text-lg block"
+              className="w-full max-w-sm mx-auto bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black py-3 rounded-[2rem] transition-all shadow-[0_4px_14px_rgba(99,102,241,0.4)] hover:shadow-[0_6px_20px_rgba(99,102,241,0.5)] active:scale-[0.96] text-base block"
             >
               {dueCount > 0 ? `Start Drill → ${dueCount} due` : "Start Drill →"}
             </button>
@@ -624,8 +624,8 @@ export default function WordDrill() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-4 pb-24">
-      <div className="max-w-md w-full cutesy-glass p-8 rounded-[2.5rem] shadow-[0_12px_40px_rgba(99,102,241,0.2)] border-2 border-white/80 relative overflow-hidden">
+    <main className="min-h-screen flex flex-col items-center justify-center p-4 pb-32">
+      <div className="max-w-md w-full cutesy-glass p-7 rounded-[2.25rem] shadow-[0_12px_40px_rgba(99,102,241,0.2)] border-2 border-white/80 relative overflow-hidden">
         
         <header className="mb-8 text-center relative pt-2">
           <p className="text-xs uppercase tracking-widest text-indigo-400 font-bold mb-2">Drill Mode · SM-2</p>
@@ -649,7 +649,7 @@ export default function WordDrill() {
               <h2 className="text-4xl font-black text-slate-700 mb-6 tracking-tight drop-shadow-sm">{currentPrompt.word}</h2>
               <div className="flex flex-wrap items-center justify-center gap-2">
                 {currentPrompt.constraints.map((c: string, idx: number) => (
-                  <span key={idx} className="bg-indigo-100 text-indigo-600 text-xs sm:text-sm font-bold px-3 py-1.5 rounded-full shadow-sm border border-indigo-200">
+                  <span key={idx} className="bg-indigo-100 text-indigo-600 text-[11px] sm:text-xs font-bold px-2 py-1 rounded-full shadow-sm border border-indigo-200">
                     {c}
                   </span>
                 ))}
@@ -671,12 +671,12 @@ export default function WordDrill() {
                 ref={inputRef}
                 disabled={!!feedback}
                 autoComplete="off"
-                className="w-full bg-white border-2 border-indigo-100 focus:border-indigo-300 focus:ring-4 focus:ring-indigo-100 outline-none rounded-2xl px-4 py-4 text-center text-xl font-bold text-slate-700 transition-all disabled:opacity-50 shadow-inner"
+                className="w-full bg-white border-2 border-indigo-100 focus:border-indigo-300 focus:ring-4 focus:ring-indigo-100 outline-none rounded-2xl px-3 py-3 text-center text-lg font-bold text-slate-700 transition-all disabled:opacity-50 shadow-inner"
                 placeholder="Type your answer..."
               />
 
               {!feedback && (
-                <button type="submit" className="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-black py-4 rounded-[2rem] transition-all shadow-[0_4px_14px_rgba(99,102,241,0.4)] hover:shadow-[0_6px_20px_rgba(99,102,241,0.5)] active:scale-[0.96]">
+                <button type="submit" className="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-black py-3 rounded-[2rem] transition-all shadow-[0_4px_14px_rgba(99,102,241,0.4)] hover:shadow-[0_6px_20px_rgba(99,102,241,0.5)] active:scale-[0.96]">
                   {userInput.trim() === "" ? "I don't know (Show Answer)" : "Check"}
                 </button>
               )}
@@ -687,19 +687,19 @@ export default function WordDrill() {
                 <button
                   type="button"
                   onClick={generatePrompt}
-                  className="w-full bg-slate-800 text-white font-black py-4 rounded-[2rem] transition-all hover:bg-slate-700 active:scale-[0.96] shadow-md"
+                  className="w-full bg-slate-800 text-white font-black py-3 rounded-[2rem] transition-all hover:bg-slate-700 active:scale-[0.96] shadow-md"
                 >
                   Next Word (Press Enter)
                 </button>
 
-                <div className={`p-4 rounded-[2rem] text-center font-bold animate-in fade-in slide-in-from-bottom-2 border-2 ${
+                <div className={`p-3 rounded-[1.75rem] text-center font-bold animate-in fade-in slide-in-from-bottom-2 border-2 ${
                   feedback.score === 1.0 ? "bg-emerald-50 text-emerald-500 border-emerald-200" :
                   feedback.score > 0 ? "bg-amber-50 text-amber-500 border-amber-200" :
                   "bg-rose-50 text-rose-500 border-rose-200"
                   }`}>
-                  {feedback.score === 1.0 && <p className="text-lg">Perfect! <span className="text-xl">✨</span></p>}
-                  {feedback.score > 0 && feedback.score < 1.0 && <p className="text-lg">Almost! ½</p>}
-                  {feedback.score === 0.0 && <p className="text-lg">Incorrect!</p>}
+                  {feedback.score === 1.0 && <p className="text-base">Perfect! <span className="text-lg">✨</span></p>}
+                  {feedback.score > 0 && feedback.score < 1.0 && <p className="text-base">Almost! ½</p>}
+                  {feedback.score === 0.0 && <p className="text-base">Incorrect!</p>}
                   {feedback.score < 1.0 && (
                     <p className="mt-2 text-sm text-slate-500 font-medium">
                       Expected: <span className="font-black text-slate-700">{feedback.expected}</span>
