@@ -191,7 +191,10 @@ export default function Dashboard() {
                     <XAxis dataKey="name" stroke="#94a3b8" axisLine={false} tickLine={false} dy={10} tick={{fontWeight: 'bold', fontSize: 12}} />
                     <YAxis stroke="#94a3b8" axisLine={false} tickLine={false} dx={-20} domain={[0, 1]} tick={{fontWeight: 'bold', fontSize: 12}} />
                     <Tooltip 
-                      formatter={(value: number) => [`${value.toFixed(2)}`, "Avg score"]}
+                      formatter={(value: unknown) => {
+                        const num = typeof value === "number" ? value : 0;
+                        return [`${num.toFixed(2)}`, "Avg score"];
+                      }}
                       contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #f1f5f9', borderRadius: '16px', color: '#334155', fontWeight: 'bold' }}
                       itemStyle={{ color: '#f59e0b', fontWeight: '900' }} 
                     />
