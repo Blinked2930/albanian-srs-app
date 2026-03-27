@@ -2,118 +2,86 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Initialize Supabase
+// 1. KILL THE CACHE
+export const dynamic = 'force-dynamic';
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export async function POST(request: Request) {
   try {
-    // 0. THE IMPEACHMENT CLAUSE (Garbage Collection)
-    // Ruthlessly delete any sentence older than 2 weeks to keep context fresh
     const twoWeeksAgo = new Date();
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
-    const { error: purgeError } = await supabase
-      .from('sentences')
-      .delete()
-      .lt('created_at', twoWeeksAgo.toISOString());
+    const { error: purgeError } = await supabase.from('sentences').delete().lt('created_at', twoWeeksAgo.toISOString());
+    if (purgeError) console.error("Impeachment Clause Failed:", purgeError);
 
-    if (purgeError) {
-      console.error("Impeachment Clause Failed:", purgeError);
-    } else {
-      console.log("Impeachment Clause Executed: Stale context purged.");
-    }
-
-    // 1. Fetch vocab needing sentences, explicitly pulling mastery_score
-    const { data: allVocab, error: fetchError } = await supabase
-      .from('vocab')
-      .select('id, albanian, english, type, mastery_score, sentences(id)');
-
+    const { data: allVocab, error: fetchError } = await supabase.from('vocab').select('id, albanian, english, type, mastery_score, sentences(id)');
     if (fetchError) throw fetchError;
 
     const needsSentences = allVocab.filter((v: any) => !v.sentences || v.sentences.length === 0);
+    if (!needsSentences || needsSentences.length === 0) return NextResponse.json({ message: "All words have sentences!" });
 
-    if (!needsSentences || needsSentences.length === 0) {
-      return NextResponse.json({ message: "All words have sentences! You are fully stocked." });
-    }
-
-    // 2. Sort ruthlessly by lowest mastery score
     needsSentences.sort((a, b) => (a.mastery_score || 0) - (b.mastery_score || 0));
 
-    // Separate into verbs and non-verbs while maintaining the lowest-first sort order
     const verbs = needsSentences.filter((v: any) => v.type === 'Verb' || v.type === 'Command');
     const nonVerbs = needsSentences.filter((v: any) => v.type !== 'Verb' && v.type !== 'Command');
 
-    // Target the 6 absolute weakest verbs and 6 absolute weakest non-verbs
     const targetVerbCount = Math.min(6, verbs.length);
-    const remainingSlots = 12 - targetVerbCount;
-
     const selectedVerbs = verbs.slice(0, targetVerbCount);
-    const selectedNonVerbs = nonVerbs.slice(0, remainingSlots);
+    const selectedNonVerbs = nonVerbs.slice(0, 12 - targetVerbCount);
 
-    // Combine the 12 weakest words and give them a quick shuffle so Gemini doesn't always see verbs first
     const vocabToProcess = [...selectedVerbs, ...selectedNonVerbs].sort(() => 0.5 - Math.random());
 
-    // 3. Fetch "Mid-Tier" words for passive exposure
-    const { data: midTierVocab, error: midTierError } = await supabase
-      .from('vocab')
-      .select('albanian, english')
-      .gte('mastery_score', 0.4)
-      .lte('mastery_score', 0.8)
-      .limit(50);
-
-    if (midTierError) console.error("Could not fetch mid-tier vocab, proceeding without it.");
-
+    const { data: midTierVocab } = await supabase.from('vocab').select('albanian, english').gte('mastery_score', 0.4).lte('mastery_score', 0.8).limit(50);
     const getRandomMidTierWords = () => {
       if (!midTierVocab || midTierVocab.length === 0) return null;
-      const shuffled = [...midTierVocab].sort(() => 0.5 - Math.random());
-      const selected = shuffled.slice(0, 3);
-      return selected.map(w => `${w.albanian} (${w.english})`).join(', ');
+      return [...midTierVocab].sort(() => 0.5 - Math.random()).slice(0, 3).map(w => `${w.albanian} (${w.english})`).join(', ');
     };
 
-    // 4. Fetch lowest performing grammar metrics to guide Gemini
-    const { data: weakGrammar, error: weakGrammarError } = await supabase
-      .from('grammar_metrics')
-      .select('dimension_type, dimension_value, mastery_score')
-      .order('mastery_score', { ascending: true })
-      .limit(15);
+    const { data: weakGrammar } = await supabase.from('grammar_metrics').select('dimension_type, dimension_value, mastery_score').order('mastery_score', { ascending: true }).limit(15);
 
     let grammarPrioritiesText = "";
-    if (!weakGrammarError && weakGrammar && weakGrammar.length > 0) {
+    if (weakGrammar && weakGrammar.length > 0) {
       const weakTenses = weakGrammar.filter(g => g.dimension_type === 'tense').map(g => g.dimension_value);
       const weakPronouns = weakGrammar.filter(g => g.dimension_type === 'pronoun').map(g => g.dimension_value);
       const weakCases = weakGrammar.filter(g => g.dimension_type === 'noun_case').map(g => g.dimension_value);
 
       grammarPrioritiesText = `
       STUDENT'S WEAKEST GRAMMAR POINTS:
-      The student is currently struggling with the following grammar rules. You MUST prioritize using these exact forms for the TARGET words whenever grammatically and logically possible:
+      You MUST prioritize using these exact forms for the TARGET words whenever grammatically and logically possible:
       ${weakTenses.length > 0 ? `- Target these Verb Tenses: ${weakTenses.slice(0, 3).join(', ')}` : ''}
       ${weakPronouns.length > 0 ? `- Target these Pronouns: ${weakPronouns.slice(0, 3).join(', ')}` : ''}
       ${weakCases.length > 0 ? `- Target these Noun Cases: ${weakCases.slice(0, 3).join(', ')}` : ''}
       `;
     }
 
-    // 5. Construct the dynamic Tier 1 Prompt
     const promptInstructions = vocabToProcess.map(v => {
       const secondaryWords = getRandomMidTierWords();
       let instruction = `- TARGET WORD: ${v.albanian} (English: ${v.english}, Type: ${v.type || 'Unknown'})`;
-      if (secondaryWords) {
-        instruction += `\n    -> SECONDARY GOAL: Try to naturally incorporate 1 or 2 of these review words into the sentence as well: [${secondaryWords}]`;
-      }
+      if (secondaryWords) instruction += `\n    -> SECONDARY GOAL: Try to naturally incorporate 1 or 2 of these review words: [${secondaryWords}]`;
       return instruction;
     }).join('\n\n');
 
-    const prompt = `
+    // Fetch the dynamic prompt from Supabase
+    const { data: promptData, error: promptError } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "gemini_sentence_prompt")
+      .single();
+
+    if (promptError) console.warn("Supabase Error in Sentence API:", promptError);
+    
+    // Log it to terminal
+    console.log("Fetched Sentence Prompt from DB:", promptData?.value);
+
+    const basePrompt = promptData?.value || `
       You are an expert Albanian language curriculum designer. 
       The student is a Peace Corps Volunteer in Albania at the ACTFL Intermediate Low (CEFR A2) level.
-      
       I will provide a list of TARGET Albanian words. For each word, generate a highly contextual, everyday practice sentence suitable for an A2 speaker.
-      
-      ${grammarPrioritiesText}
       
       RULES:
       1. Replace ONLY the TARGET Albanian word in the sentence with "___".
@@ -123,23 +91,10 @@ export async function POST(request: Request) {
       5. Use simple, everyday A2 vocabulary for the rest of the sentence.
       6. GRAMMAR TRACKING: You MUST identify the specific grammatical form of the TARGET word used in the sentence and output it using EXACTLY these strict formats:
          - IF VERB: "grammar_type": "conjugation", "grammar_value": "{tense}:{pronoun}"
-           (Valid Tenses: indicative_present, indicative_imperfect, indicative_aorist, subjunctive_present, imperative_present, participle)
-           (Valid Pronouns: Unë, Ti, Ai/Ajo, Ne, Ju, Ata/Ato)
-           Example: "grammar_value": "indicative_aorist:Unë"
          - IF NOUN: "grammar_type": "noun_declension", "grammar_value": "{case}:{definiteness}:{plurality}"
-           (Valid Cases: Nominative, Accusative, Dative, Genitive, Ablative)
-           (Valid Definiteness: Definite, Indefinite)
-           (Valid Plurality: Singular, Plural)
-           Example: "grammar_value": "Accusative:Definite:Singular"
          - IF ADJECTIVE: "grammar_type": "adjective_agreement", "grammar_value": "{gender}:{plurality}"
-           (Valid Gender: Masculine, Feminine)
-           (Valid Plurality: Singular, Plural)
-           Example: "grammar_value": "Feminine:Plural"
-         - IF OTHER (Adverb, Preposition, Phrase): "grammar_type": null, "grammar_value": null
+         - IF OTHER: "grammar_type": null, "grammar_value": null
       7. Output STRICTLY in JSON array format. Do not include markdown blocks like \`\`\`json.
-      
-      Words to process:
-      ${promptInstructions}
       
       EXPECTED JSON FORMAT:
       [
@@ -155,44 +110,37 @@ export async function POST(request: Request) {
       ]
     `;
 
-    // 6. Ping Gemini
-    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    const finalPrompt = `
+      ${basePrompt}
+      
+      ${grammarPrioritiesText}
+      
+      Words to process:
+      ${promptInstructions}
+    `;
 
-    // 7. Parse the AI response cleanly
-    const cleanJsonString = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+    const result = await model.generateContent(finalPrompt);
+    
+    const cleanJsonString = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
     const generatedSentences = JSON.parse(cleanJsonString);
 
-    // 8. Map the AI response back to your Database IDs
     const insertPayload = generatedSentences.map((aiSentence: any) => {
       const parentVocab = vocabToProcess.find(v => v.albanian.toLowerCase() === aiSentence.albanian_word.toLowerCase());
       return {
-        vocab_id: parentVocab?.id,
-        grammar_type: aiSentence.grammar_type || null,
-        grammar_value: aiSentence.grammar_value || null,
-        blanked_albanian: aiSentence.blanked_albanian,
-        target_albanian: aiSentence.target_albanian,
-        target_english: aiSentence.target_english,
-        english_translation: aiSentence.english_translation
+        vocab_id: parentVocab?.id, grammar_type: aiSentence.grammar_type || null, grammar_value: aiSentence.grammar_value || null,
+        blanked_albanian: aiSentence.blanked_albanian, target_albanian: aiSentence.target_albanian,
+        target_english: aiSentence.target_english, english_translation: aiSentence.english_translation
       };
     }).filter((payload: any) => payload.vocab_id);
 
-    // 9. Inject into Supabase
     const { error: insertError } = await supabase.from('sentences').insert(insertPayload);
     if (insertError) throw insertError;
 
-    return NextResponse.json({
-      success: true,
-      message: `Successfully generated and saved ${insertPayload.length} new sentences.`,
-      data: insertPayload
-    });
+    return NextResponse.json({ success: true, message: `Successfully generated and saved ${insertPayload.length} new sentences.`, data: insertPayload });
 
   } catch (error: any) {
     console.error("Sentence Generation API Error:", error);
-    return NextResponse.json({ 
-      error: "Failed to generate sentences. There was an error with the AI API.",
-      details: error.message 
-    }, { status: 500 });
+    return NextResponse.json({ error: "Failed to generate sentences.", details: error.message }, { status: 500 });
   }
 }

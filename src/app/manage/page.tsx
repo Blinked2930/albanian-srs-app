@@ -34,6 +34,12 @@ const mockCategories = ["Unknown", "Phrase", "Adjective", "Verb", "Adverb", "Nou
 
 type SortKey = "albanian" | "english" | "type" | "next_review" | "confidence" | "mastery_score";
 
+const PROMPT_TYPES = [
+  { id: "gemini_sentence_prompt", label: "Sentences" },
+  { id: "gemini_mnemonic_prompt", label: "Mnemonics" },
+  { id: "gemini_sql_prompt", label: "SQL Pipeline" }
+];
+
 // ────────────────────────────────────────────────────────────────
 // UI Component: MiniTrend (Operational Sparkline)
 // ────────────────────────────────────────────────────────────────
@@ -87,9 +93,10 @@ export default function ManageVocab() {
   const typeDropdownButtonRef = useRef<HTMLButtonElement>(null);
   const typeDropdownListRef = useRef<HTMLDivElement>(null);
 
-  // App Settings / Prompt Modal State
+  // Multi-Prompt Modal State
   const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
-  const [systemPrompt, setSystemPrompt] = useState("");
+  const [activePromptKey, setActivePromptKey] = useState("gemini_sentence_prompt");
+  const [promptsDict, setPromptsDict] = useState<Record<string, string>>({});
   const [editedPrompt, setEditedPrompt] = useState("");
   const [isEditingPrompt, setIsEditingPrompt] = useState(false);
   const [isSavingPrompt, setIsSavingPrompt] = useState(false);
@@ -100,11 +107,10 @@ export default function ManageVocab() {
 
   useEffect(() => {
     fetchVocab();
-    fetchSystemPrompt();
+    fetchAllPrompts();
   }, []);
 
-  // Close dropdown on scroll or resize so it doesn't drift,
-  // but ignore scroll events that originate inside the dropdown list itself
+  // Close dropdown on scroll or resize
   useEffect(() => {
     if (!isTypeDropdownOpen) return;
     const close = (e: Event) => {
@@ -145,23 +151,29 @@ export default function ManageVocab() {
     }
   }
 
-  async function fetchSystemPrompt() {
+  async function fetchAllPrompts() {
     try {
       const supabase = getSupabase();
       if (!supabase) return;
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("app_settings")
-        .select("value")
-        .eq("key", "gemini_sql_prompt")
-        .single();
+        .select("key, value")
+        .in("key", ["gemini_sql_prompt", "gemini_sentence_prompt", "gemini_mnemonic_prompt"]);
+
+      if (error) {
+        console.error("Error fetching prompts:", error);
+        return;
+      }
 
       if (data) {
-        setSystemPrompt(data.value);
-        setEditedPrompt(data.value);
+        const mapping: Record<string, string> = {};
+        data.forEach(item => mapping[item.key] = item.value);
+        setPromptsDict(mapping);
+        setEditedPrompt(mapping["gemini_sentence_prompt"] || "");
       }
     } catch (err) {
-      console.error("Failed to load system prompt:", err);
+      console.error("Failed to load prompts:", err);
     }
   }
 
@@ -336,8 +348,14 @@ export default function ManageVocab() {
   };
 
   // --- Prompt Modal Handlers ---
+  const handlePromptTabChange = (key: string) => {
+    setActivePromptKey(key);
+    setEditedPrompt(promptsDict[key] || "");
+    setIsEditingPrompt(false);
+  };
+
   const handleCopyPrompt = () => {
-    navigator.clipboard.writeText(systemPrompt);
+    navigator.clipboard.writeText(promptsDict[activePromptKey] || "");
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 2000);
   };
@@ -347,9 +365,17 @@ export default function ManageVocab() {
     const supabase = getSupabase();
     if (!supabase) return;
 
-    const { error } = await supabase.from("app_settings").update({ value: editedPrompt, updated_at: new Date().toISOString() }).eq("key", "gemini_sql_prompt");
-    if (error) alert("Failed to save prompt: " + error.message);
-    else { setSystemPrompt(editedPrompt); setIsEditingPrompt(false); }
+    const { error } = await supabase
+      .from("app_settings")
+      .update({ value: editedPrompt, updated_at: new Date().toISOString() })
+      .eq("key", activePromptKey);
+
+    if (error) {
+      alert("Failed to save prompt: " + error.message);
+    } else {
+      setPromptsDict(prev => ({ ...prev, [activePromptKey]: editedPrompt }));
+      setIsEditingPrompt(false);
+    }
     setIsSavingPrompt(false);
   };
 
@@ -677,19 +703,34 @@ export default function ManageVocab() {
                 <div className="bg-indigo-100 p-2 rounded-xl text-indigo-500">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" x2="20" y1="19" y2="19" /></svg>
                 </div>
-                Data Pipeline Prompt
+                AI Prompt Engineering
               </h3>
               <button onClick={() => setIsPromptModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-2 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors" title="Close">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </header>
 
-            <div className="flex-1 overflow-hidden flex flex-col p-6 sm:p-8 bg-slate-50/50">
+            {/* iOS Style Segmented Control Tab Switcher */}
+            <div className="px-6 sm:px-8 pt-4 pb-2 border-b-2 border-slate-100">
+               <div className="bg-slate-100 p-1.5 rounded-2xl flex w-full max-w-xl shadow-inner">
+                  {PROMPT_TYPES.map(type => (
+                    <button
+                      key={type.id}
+                      onClick={() => handlePromptTabChange(type.id)}
+                      className={`flex-1 text-sm font-bold py-2.5 rounded-xl transition-all ${activePromptKey === type.id ? 'bg-white text-indigo-500 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+               </div>
+            </div>
+
+            <div className="flex-1 overflow-hidden flex flex-col p-6 sm:p-8 bg-transparent">
               {isEditingPrompt ? (
                 <textarea value={editedPrompt} onChange={e => setEditedPrompt(e.target.value)} spellCheck={false} className="flex-1 w-full bg-white border-2 border-indigo-200 focus:border-indigo-400 outline-none rounded-[1.5rem] p-6 font-mono text-sm sm:text-base text-slate-700 resize-none transition-all shadow-inner" />
               ) : (
                 <div className="flex-1 w-full bg-white border-2 border-slate-200 rounded-[1.5rem] p-6 overflow-auto font-mono text-sm sm:text-base text-slate-600 whitespace-pre-wrap shadow-inner leading-relaxed">
-                  {systemPrompt || "Loading prompt..."}
+                  {promptsDict[activePromptKey] || "No prompt saved. Edit to create one!"}
                 </div>
               )}
             </div>
@@ -697,7 +738,7 @@ export default function ManageVocab() {
             <footer className="p-6 sm:p-8 border-t-2 border-slate-100 flex flex-wrap justify-end gap-3 bg-white rounded-b-[2.5rem]">
               {isEditingPrompt ? (
                 <>
-                  <button onClick={() => { setIsEditingPrompt(false); setEditedPrompt(systemPrompt); }} className="px-6 py-3.5 rounded-xl font-black bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors active:scale-95">Cancel</button>
+                  <button onClick={() => { setIsEditingPrompt(false); setEditedPrompt(promptsDict[activePromptKey] || ""); }} className="px-6 py-3.5 rounded-xl font-black bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors active:scale-95">Cancel</button>
                   <button onClick={handleSavePrompt} disabled={isSavingPrompt} className="px-6 py-3.5 rounded-xl font-black bg-indigo-500 hover:bg-indigo-400 text-white transition-all flex items-center gap-2 shadow-[0_4px_14px_rgba(99,102,241,0.3)] active:scale-95 disabled:opacity-50">
                     {isSavingPrompt ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>}
                     {isSavingPrompt ? "Saving..." : "Save Changes"}
@@ -717,7 +758,6 @@ export default function ManageVocab() {
           </div>
         </div>
       )}
-
     </main>
   );
 }
