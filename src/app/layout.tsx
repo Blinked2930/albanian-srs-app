@@ -19,12 +19,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Albanian SRS",
+  title: "FjalëFlow",
   description: "Learn Albanian with Spaced Repetition",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Albanian SRS",
+    title: "FjalëFlow",
   },
 };
 

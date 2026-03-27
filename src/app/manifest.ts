@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Albanian SRS",
-    short_name: "Albanian SRS",
+    name: "FjalëFlow",
+    short_name: "FjalëFlow",
     description: "An Albanian language spaced repetition learning app",
     start_url: "/",
     display: "standalone",
