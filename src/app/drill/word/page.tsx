@@ -312,7 +312,8 @@ export default function WordDrill() {
   };
 
   const openDictionaryForCurrentWord = () => {
-    if (!currentPrompt) return;
+    // Only allow opening if feedback exists (answer has been shown/checked)
+    if (!currentPrompt || !feedback) return;
     const baseWord = dbVocabRef.current.find(w => w.id === currentPrompt.id);
     if (baseWord) setModalWord(baseWord);
   };
@@ -342,7 +343,6 @@ export default function WordDrill() {
 
     return (
       <main className="min-h-[100dvh] bg-[#fafafa] flex flex-col items-center p-6 pt-12 sm:pt-20 pb-[calc(env(safe-area-inset-bottom)+5rem)] select-none">
-        {/* Expanded max-w for desktop */}
         <div className="max-w-md sm:max-w-3xl w-full">
           
           <header className="mb-8 text-center sm:text-left">
@@ -397,39 +397,44 @@ export default function WordDrill() {
 
   return (
     <main className="min-h-[100dvh] bg-[#fafafa] flex flex-col items-center justify-start sm:justify-center p-4 pt-8 sm:p-8 pb-[calc(env(safe-area-inset-bottom)+5rem)] select-none">
-      {/* Expanded card width for desktop */}
-      <div className="max-w-md sm:max-w-xl md:max-w-2xl w-full bg-white/80 backdrop-blur-xl p-6 sm:p-12 rounded-[2.5rem] sm:rounded-[3rem] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border-2 border-white relative">
+      <div className="max-w-md sm:max-w-xl md:max-w-2xl w-full bg-white/80 backdrop-blur-xl p-6 sm:p-10 rounded-[2.5rem] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border-2 border-white relative">
         
-        <header className="mb-6 sm:mb-10 text-center relative">
-          <Link href="/" className="absolute left-0 top-0 text-slate-300 hover:text-slate-500 transition-colors p-2 sm:p-0">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-8 sm:h-8"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </Link>
-          
-          <button onClick={openDictionaryForCurrentWord} className="absolute right-0 top-0 text-indigo-300 hover:text-indigo-500 transition-colors p-2 sm:p-3 bg-indigo-50/50 rounded-full" title="Grammar Details">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="sm:w-6 sm:h-6"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <header className="mb-6 sm:mb-8 text-center relative">
+          {/* Changed routing: Reverts back to 'setup' phase instead of kicking out to home */}
+          <button onClick={() => setPhase("setup")} className="absolute left-0 top-0 text-slate-300 hover:text-slate-500 transition-colors p-2 sm:p-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-7 sm:h-7"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
           
-          <p className="text-xs sm:text-sm uppercase tracking-widest text-slate-400 font-bold pt-2 sm:pt-1">Translate</p>
+          <button 
+            onClick={openDictionaryForCurrentWord} 
+            disabled={!feedback}
+            className={`absolute right-0 top-0 transition-colors p-2 sm:p-2.5 rounded-full ${!feedback ? 'text-slate-300 bg-slate-50 opacity-50 cursor-not-allowed' : 'text-indigo-500 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-600 shadow-sm'}`} 
+            title="Grammar Details"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="sm:w-5 sm:h-5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </button>
+          
+          <p className="text-xs uppercase tracking-widest text-slate-400 font-bold pt-2 sm:pt-1">Translate</p>
         </header>
 
         {caughtUp && (
           <div className="text-center py-12 sm:py-16">
-            <p className="text-5xl sm:text-7xl mb-4 animate-bounce">🎉</p>
-            <p className="text-2xl sm:text-4xl font-black text-slate-700 mb-2 sm:mb-4">All caught up!</p>
-            <p className="text-slate-400 text-sm sm:text-lg mb-8 font-bold">You crushed your reviews for now.</p>
-            <Link href="/" className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-black py-3 sm:py-4 px-6 sm:px-8 rounded-full transition-colors inline-flex items-center gap-2 sm:text-lg">
-               Back to Hub
-            </Link>
+            <p className="text-5xl sm:text-6xl mb-4 animate-bounce">🎉</p>
+            <p className="text-2xl sm:text-3xl font-black text-slate-700 mb-2 sm:mb-4">All caught up!</p>
+            <p className="text-slate-400 text-sm sm:text-base mb-8 font-bold">You crushed your reviews for now.</p>
+            <button onClick={() => setPhase("setup")} className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-black py-3 sm:py-3.5 px-6 sm:px-8 rounded-full transition-colors inline-flex items-center gap-2 sm:text-base">
+               Back to Filter
+            </button>
           </div>
         )}
 
         {!caughtUp && currentPrompt && (
           <>
-            <section className="text-center mb-8 sm:mb-12">
-              <h2 className="text-4xl sm:text-6xl font-black text-slate-800 mb-4 tracking-tight">{currentPrompt.word}</h2>
+            <section className="text-center mb-8 sm:mb-10">
+              <h2 className="text-4xl sm:text-5xl font-black text-slate-800 mb-4 tracking-tight">{currentPrompt.word}</h2>
               <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
                 {currentPrompt.constraints.map((c: string, idx: number) => (
-                  <span key={idx} className="bg-slate-100 text-slate-500 text-[11px] sm:text-sm font-black px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-md border border-slate-200/60 uppercase tracking-wide">
+                  <span key={idx} className="bg-slate-100 text-slate-500 text-[11px] sm:text-xs font-black px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-md border border-slate-200/60 uppercase tracking-wide">
                     {c}
                   </span>
                 ))}
@@ -445,57 +450,57 @@ export default function WordDrill() {
                 ref={inputRef}
                 disabled={!!feedback}
                 autoComplete="off"
-                className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-400 focus:bg-white outline-none rounded-[1.5rem] px-4 py-4 sm:px-6 sm:py-6 text-center text-xl sm:text-3xl font-bold text-slate-700 transition-all disabled:opacity-50"
+                className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-400 focus:bg-white outline-none rounded-[1.5rem] px-4 py-4 sm:px-5 sm:py-4 text-center text-xl sm:text-2xl font-bold text-slate-700 transition-all disabled:opacity-50"
                 placeholder="Type in Albanian..."
               />
 
               {!feedback && (
-                <button type="submit" className="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-black py-4 sm:py-6 rounded-[1.5rem] transition-all shadow-[0_4px_14px_rgba(99,102,241,0.3)] active:scale-95 text-lg sm:text-2xl mt-2 sm:mt-4">
+                <button type="submit" className="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-black py-4 sm:py-4 rounded-[1.5rem] transition-all shadow-[0_4px_14px_rgba(99,102,241,0.3)] active:scale-95 text-lg sm:text-xl mt-2 sm:mt-3">
                   {userInput.trim() === "" ? "Show Answer" : "Check"}
                 </button>
               )}
             </form>
 
             {feedback && feedback.promptId === currentPrompt?.promptId && (
-              <div className="mt-4 sm:mt-6 flex flex-col gap-3 sm:gap-4 animate-in fade-in slide-in-from-bottom-2">
+              <div className="mt-4 sm:mt-5 flex flex-col gap-3 sm:gap-4 animate-in fade-in slide-in-from-bottom-2">
                 
-                <div className={`p-4 sm:p-6 rounded-[1.5rem] text-center font-bold border-2 ${
+                <div className={`p-4 sm:p-5 rounded-[1.5rem] text-center font-bold border-2 ${
                   feedback.score === 1.0 ? "bg-emerald-50 text-emerald-600 border-emerald-200" :
                   feedback.score > 0 ? "bg-amber-50 text-amber-600 border-amber-200" :
                   "bg-rose-50 text-rose-600 border-rose-200"
                   }`}>
-                  <p className="text-lg sm:text-2xl mb-1 sm:mb-2">{feedback.score === 1.0 ? "Perfect! ✨" : feedback.score > 0 ? "Almost!" : "Incorrect."}</p>
+                  <p className="text-lg sm:text-xl mb-1">{feedback.score === 1.0 ? "Perfect! ✨" : feedback.score > 0 ? "Almost!" : "Incorrect."}</p>
                   
                   {feedback.score < 1.0 && (
-                    <p className="text-sm sm:text-lg text-slate-500">
-                      Answer: <span className="font-black text-slate-800 text-base sm:text-xl">{feedback.expected}</span>
+                    <p className="text-sm sm:text-base text-slate-500">
+                      Answer: <span className="font-black text-slate-800 text-base sm:text-lg">{feedback.expected}</span>
                     </p>
                   )}
                 </div>
 
                 {/* Compact Action Row for PWA */}
-                <div className="flex gap-2 sm:gap-4">
+                <div className="flex gap-2 sm:gap-3">
                   {!mnemonic && !isGeneratingMnemonic && (
-                    <button onClick={handleGenerateMnemonic} type="button" className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-500 font-bold py-3 sm:py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform text-sm sm:text-lg">
+                    <button onClick={handleGenerateMnemonic} type="button" className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-500 font-bold py-3 sm:py-3.5 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform text-sm sm:text-base">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-5 sm:h-5"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/></svg>
                       Hint
                     </button>
                   )}
                   {isGeneratingMnemonic && (
-                     <div className="flex-1 bg-slate-50 text-indigo-400 font-bold py-3 sm:py-4 rounded-xl flex items-center justify-center gap-2 text-sm sm:text-lg">
+                     <div className="flex-1 bg-slate-50 text-indigo-400 font-bold py-3 sm:py-3.5 rounded-xl flex items-center justify-center gap-2 text-sm sm:text-base">
                         <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin"></div>
                      </div>
                   )}
                   
-                  <button onClick={generatePrompt} type="button" className="flex-[2] bg-slate-800 hover:bg-slate-700 text-white font-black py-3 sm:py-4 rounded-xl active:scale-95 transition-transform shadow-md text-sm sm:text-xl flex items-center justify-center gap-2">
-                    Next <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-6 sm:h-6"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                  <button onClick={generatePrompt} type="button" className="flex-[2] bg-slate-800 hover:bg-slate-700 text-white font-black py-3 sm:py-3.5 rounded-xl active:scale-95 transition-transform shadow-md text-sm sm:text-base flex items-center justify-center gap-2">
+                    Next <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-5 sm:h-5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                   </button>
                 </div>
 
                 {/* Compact Mnemonic Display */}
                 {mnemonic && (
-                  <div className="bg-white border-2 border-indigo-100 rounded-[1.5rem] p-4 sm:p-6 text-left shadow-sm mt-1 sm:mt-2">
-                    <div className="prose prose-sm sm:prose-base leading-snug font-medium text-slate-600"
+                  <div className="bg-white border-2 border-indigo-100 rounded-[1.5rem] p-4 sm:p-5 text-left shadow-sm mt-1">
+                    <div className="prose prose-sm leading-snug font-medium text-slate-600"
                       dangerouslySetInnerHTML={{ __html: mnemonic.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-600 font-black">$1</strong>') }}
                     />
                   </div>
