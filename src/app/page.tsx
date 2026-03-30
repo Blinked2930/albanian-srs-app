@@ -35,30 +35,43 @@ export default function Home() {
   async function fetchDashboardData() {
     setLoading(true);
     const supabase = getSupabase();
-    if (!supabase) return;
+    if (!supabase) { setLoading(false); return; } // <-- FIX: always unblock loading
 
     try {
-      // 1. Fetch Vocab (Expanded select to power the Cram search)
-      const { data: vocabData } = await supabase.from('vocab').select('id, albanian, english, type, mastery_score, streak, next_review');
-      
-      let totalWords = 0; let globalMastery = 0; let maxStreak = 0;
-      if (vocabData && vocabData.length > 0) {
-        setAllVocab(vocabData); // Save for the cram modal
-        totalWords = vocabData.length;
-        const totalMastery = vocabData.reduce((sum, v) => sum + (v.mastery_score || 0), 0);
-        globalMastery = totalMastery / totalWords;
-        maxStreak = Math.max(...vocabData.map(v => v.streak || 0)); 
+      // 1. Fetch Vocab — includes created_at for recency presets.
+      //    If your `vocab` table doesn't have created_at, remove it from the
+      //    select string and the preset buttons will simply return empty arrays.
+      const { data: vocabData, error: vocabError } = await supabase
+        .from('vocab')
+        .select('id, albanian, english, type, mastery_score, streak, next_review, created_at');
+
+      if (vocabError) {
+        // If created_at doesn't exist on the table, fall back without it
+        console.warn("Vocab fetch error (possibly missing created_at column):", vocabError.message);
+        const { data: vocabFallback } = await supabase
+          .from('vocab')
+          .select('id, albanian, english, type, mastery_score, streak, next_review');
+        if (vocabFallback) processVocab(vocabFallback);
+      } else if (vocabData) {
+        processVocab(vocabData);
       }
-      setKpis({ totalWords, globalMastery: Number(globalMastery.toFixed(2)), activeStreak: maxStreak });
 
       // 2. Fetch Grammar Metrics
-      const { data: grammarData } = await supabase.from('grammar_metrics').select('dimension_type, dimension_value, mastery_score').order('mastery_score', { ascending: true }).limit(5);
+      const { data: grammarData } = await supabase
+        .from('grammar_metrics')
+        .select('dimension_type, dimension_value, mastery_score')
+        .order('mastery_score', { ascending: true })
+        .limit(5);
       if (grammarData) setGrammarPerformance(grammarData as GrammarMetric[]);
 
       // 3. Fetch Review Logs for Chart
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const { data: logData } = await supabase.from('review_logs').select('score, created_at').gte('created_at', sevenDaysAgo.toISOString()).order('created_at', { ascending: true });
+      const { data: logData } = await supabase
+        .from('review_logs')
+        .select('score, created_at')
+        .gte('created_at', sevenDaysAgo.toISOString())
+        .order('created_at', { ascending: true });
 
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const aggregatedChart: Record<string, { count: number; totalScore: number }> = {};
@@ -69,23 +82,70 @@ export default function Home() {
       if (logData) {
         logData.forEach(log => {
           const dayName = days[new Date(log.created_at).getDay()];
-          if (aggregatedChart[dayName]) { aggregatedChart[dayName].count += 1; aggregatedChart[dayName].totalScore += log.score; }
+          if (aggregatedChart[dayName]) {
+            aggregatedChart[dayName].count += 1;
+            aggregatedChart[dayName].totalScore += log.score;
+          }
         });
       }
       const finalChartData: ChartData[] = Object.keys(aggregatedChart).map(key => ({
-        name: key, wordsReviewed: aggregatedChart[key].count,
-        avgScore: aggregatedChart[key].count > 0 ? Number((aggregatedChart[key].totalScore / aggregatedChart[key].count).toFixed(2)) : 0
+        name: key,
+        wordsReviewed: aggregatedChart[key].count,
+        avgScore: aggregatedChart[key].count > 0
+          ? Number((aggregatedChart[key].totalScore / aggregatedChart[key].count).toFixed(2))
+          : 0
       }));
       setChartData(finalChartData);
 
-    } catch (err) { console.error("Error fetching dashboard data:", err); } 
-    finally { setLoading(false); }
+    } catch (err) {
+      console.error("Error fetching dashboard data:", err);
+    } finally {
+      setLoading(false);
+    }
   }
+
+  function processVocab(vocabData: any[]) {
+    setAllVocab(vocabData);
+    const totalWords = vocabData.length;
+    const totalMastery = vocabData.reduce((sum, v) => sum + (v.mastery_score || 0), 0);
+    const globalMastery = totalWords > 0 ? totalMastery / totalWords : 0;
+    const maxStreak = totalWords > 0 ? Math.max(...vocabData.map(v => v.streak || 0)) : 0;
+    setKpis({ totalWords, globalMastery: Number(globalMastery.toFixed(2)), activeStreak: maxStreak });
+  }
+
+  // --- Cram Preset Logic ---
+  const applyCramPreset = (type: 'today' | 'week' | 'struggling') => {
+    const now = new Date();
+    let filteredIds: string[] = [];
+
+    if (type === 'today') {
+      const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+      filteredIds = allVocab
+        .filter(v => v.created_at && new Date(v.created_at) >= yesterday)
+        .map(v => v.id);
+    } else if (type === 'week') {
+      const lastWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+      filteredIds = allVocab
+        .filter(v => v.created_at && new Date(v.created_at) >= lastWeek)
+        .map(v => v.id);
+    } else if (type === 'struggling') {
+      filteredIds = allVocab.filter(v => (v.mastery_score ?? 1) < 0.5).map(v => v.id);
+    }
+
+    // Merge into existing selection (no duplicates)
+    setCramSelectedIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+  };
 
   const startCramming = () => {
     if (cramSelectedIds.length === 0) return;
     sessionStorage.setItem('cram_vocab_ids', JSON.stringify(cramSelectedIds));
     router.push('/drill/cram');
+  };
+
+  const closeCramModal = () => {
+    setIsCramModalOpen(false);
+    setCramSelectedIds([]);
+    setCramSearch("");
   };
 
   return (
@@ -132,7 +192,6 @@ export default function Home() {
                   <span className="text-2xl sm:text-3xl">🔥</span>
                   <span className="font-black text-base sm:text-xl tracking-wide">Cram Mode</span>
                 </button>
-
                 <Link href="/drill/word" className="bg-indigo-500 hover:bg-indigo-400 text-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-2 sm:gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(99,102,241,0.3)] border-2 border-indigo-400/50">
                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="sm:w-10 sm:h-10"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3z"/><path d="M3 4h8s-.5-2-1-2H5a2 2 0 0 0-2 2z"/></svg>
                   <span className="font-black text-sm sm:text-base">Word Drill</span>
@@ -192,12 +251,12 @@ export default function Home() {
         )}
       </div>
 
-      {/* SHOPPING CART CRAM MODAL */}
+      {/* CRAM MODAL */}
       {isCramModalOpen && (
-        <div className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6 animate-in fade-in" onClick={() => setIsCramModalOpen(false)}>
+        <div className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6 animate-in fade-in" onClick={closeCramModal}>
           <div className="bg-slate-50 rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-2xl h-[90vh] sm:h-[85vh] flex flex-col shadow-2xl animate-in slide-in-from-bottom-10" onClick={e => e.stopPropagation()}>
             
-            <header className="p-6 sm:p-8 border-b-2 border-slate-200 flex justify-between items-center bg-white rounded-t-[2.5rem] sm:rounded-t-[2.5rem]">
+            <header className="p-6 sm:p-8 border-b-2 border-slate-200 flex justify-between items-center bg-white rounded-t-[2.5rem]">
                <div>
                  <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
                    <div className="bg-rose-100 text-rose-500 w-10 h-10 flex items-center justify-center rounded-xl text-xl">🔥</div>
@@ -205,17 +264,27 @@ export default function Home() {
                  </h2>
                  <p className="text-sm font-bold text-slate-400 mt-1">Select words to loop endlessly.</p>
                </div>
-               <button onClick={() => setIsCramModalOpen(false)} className="bg-slate-100 hover:bg-slate-200 text-slate-500 p-2.5 rounded-full transition-colors active:scale-90">
+               <button onClick={closeCramModal} className="bg-slate-100 hover:bg-slate-200 text-slate-500 p-2.5 rounded-full transition-colors active:scale-90">
                  <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
                </button>
             </header>
             
-            <div className="p-4 sm:p-6 bg-white border-b-2 border-slate-200 shadow-sm z-10 relative">
-               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="absolute left-8 sm:left-10 top-1/2 -translate-y-1/2 text-slate-300"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-               <input 
-                 type="text" placeholder="Search by Albanian or English..." value={cramSearch} onChange={e => setCramSearch(e.target.value)} 
-                 className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl pl-12 pr-4 py-4 font-bold text-lg text-slate-700 outline-none focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-50 transition-all"
-               />
+            <div className="px-6 py-4 bg-white border-b-2 border-slate-200 space-y-4">
+               {/* Quick Presets Row */}
+               <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                  <button onClick={() => applyCramPreset('today')} className="whitespace-nowrap bg-rose-50 text-rose-600 border border-rose-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">New Today</button>
+                  <button onClick={() => applyCramPreset('week')} className="whitespace-nowrap bg-indigo-50 text-indigo-600 border border-indigo-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Recent Adds</button>
+                  <button onClick={() => applyCramPreset('struggling')} className="whitespace-nowrap bg-amber-50 text-amber-600 border border-amber-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Weak Words</button>
+                  <button onClick={() => setCramSelectedIds([])} className="whitespace-nowrap bg-slate-100 text-slate-500 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Clear All</button>
+               </div>
+
+               <div className="relative">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  <input 
+                    type="text" placeholder="Search by Albanian or English..." value={cramSearch} onChange={e => setCramSearch(e.target.value)} 
+                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl pl-12 pr-4 py-4 font-bold text-lg text-slate-700 outline-none focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-50 transition-all shadow-inner"
+                  />
+               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50">
