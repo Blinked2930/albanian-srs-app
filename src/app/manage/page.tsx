@@ -28,6 +28,7 @@ interface VocabType {
   streak: number;
   next_review: string | null;
   review_logs?: ReviewLog[];
+  matchReason?: string; 
 }
 
 const mockCategories = ["Unknown", "Phrase", "Adjective", "Verb", "Adverb", "Noun (M)", "Noun (F)", "Command", "Preposition"];
@@ -136,7 +137,6 @@ export default function ManageVocab() {
       const supabase = getSupabase();
       if (!supabase) return;
 
-      // Fetch core vocab + detail tables simultaneously to power deep search
       const [vocabRes, conjRes, nounRes, adjRes] = await Promise.all([
         supabase.from("vocab").select("*, review_logs(score, created_at)").order("next_review", { ascending: true, nullsFirst: true }),
         supabase.from("conjugations").select("*"),
@@ -354,7 +354,6 @@ export default function ManageVocab() {
     }
   };
 
-  // --- Prompt Modal Handlers ---
   const handlePromptTabChange = (key: string) => {
     setActivePromptKey(key);
     setEditedPrompt(promptsDict[key] || "");
@@ -410,67 +409,68 @@ export default function ManageVocab() {
     return <span className="text-indigo-500 font-black ml-1">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>;
   };
 
-  const processedVocab = [...vocabList]
-    .filter(item => {
-      const q = searchQuery.trim().toLowerCase();
-      if (!q) return true;
+  // --- Search Algorithm with Contextual Feedback ---
+  const processedVocab = vocabList.reduce((acc, item) => {
+    const q = searchQuery.trim().toLowerCase();
+    
+    if (!q) {
+      acc.push(item);
+      return acc;
+    }
 
-      // 1. Check root Albanian and English
-      if (item.albanian.toLowerCase().includes(q) || item.english.toLowerCase().includes(q)) return true;
+    if (item.albanian.toLowerCase().includes(q) || item.english.toLowerCase().includes(q)) {
+      acc.push(item);
+      return acc;
+    }
 
-      // 2. Check Verbs (Conjugations)
-      if (item.type === "Verb" || item.type === "Command") {
-        return allConjugations.some(c => 
-          c.vocab_id === item.id && (
-            (c.une && c.une.toLowerCase().includes(q)) ||
-            (c.ti && c.ti.toLowerCase().includes(q)) ||
-            (c.ai_ajo && c.ai_ajo.toLowerCase().includes(q)) ||
-            (c.ne && c.ne.toLowerCase().includes(q)) ||
-            (c.ju && c.ju.toLowerCase().includes(q)) ||
-            (c.ata_ato && c.ata_ato.toLowerCase().includes(q))
-          )
-        );
+    let matchReason = null;
+
+    if (item.type === "Verb" || item.type === "Command") {
+      for (const c of allConjugations) {
+        if (c.vocab_id === item.id) {
+          const vals = [c.une, c.ti, c.ai_ajo, c.ne, c.ju, c.ata_ato];
+          const match = vals.find(v => v && v.toLowerCase().includes(q));
+          if (match) { matchReason = `↳ Matches: ${match}`; break; }
+        }
       }
-
-      // 3. Check Adjectives (Agreements)
-      if (item.type === "Adjective") {
-        return allAdjectives.some(a => 
-          a.vocab_id === item.id && (
-            (a.masc_sg && a.masc_sg.toLowerCase().includes(q)) ||
-            (a.fem_sg && a.fem_sg.toLowerCase().includes(q)) ||
-            (a.masc_pl && a.masc_pl.toLowerCase().includes(q)) ||
-            (a.fem_pl && a.fem_pl.toLowerCase().includes(q))
-          )
-        );
+    } 
+    else if (item.type === "Adjective") {
+      for (const a of allAdjectives) {
+        if (a.vocab_id === item.id) {
+          const vals = [a.masc_sg, a.fem_sg, a.masc_pl, a.fem_pl];
+          const match = vals.find(v => v && v.toLowerCase().includes(q));
+          if (match) { matchReason = `↳ Matches: ${match}`; break; }
+        }
       }
-
-      // 4. Check Nouns (Declensions)
-      if (item.type?.startsWith("Noun")) {
-        return allNouns.some(n => 
-          n.vocab_id === item.id && (
-            (n.indef_sg && n.indef_sg.toLowerCase().includes(q)) ||
-            (n.def_sg && n.def_sg.toLowerCase().includes(q)) ||
-            (n.indef_pl && n.indef_pl.toLowerCase().includes(q)) ||
-            (n.def_pl && n.def_pl.toLowerCase().includes(q))
-          )
-        );
+    } 
+    else if (item.type?.startsWith("Noun")) {
+      for (const n of allNouns) {
+        if (n.vocab_id === item.id) {
+          const vals = [n.indef_sg, n.def_sg, n.indef_pl, n.def_pl];
+          const match = vals.find(v => v && v.toLowerCase().includes(q));
+          if (match) { matchReason = `↳ Matches: ${match}`; break; }
+        }
       }
+    }
 
-      return false;
-    })
-    .sort((a, b) => {
-      let aVal: any = a[sortConfig.key];
-      let bVal: any = b[sortConfig.key];
-      if (sortConfig.key === "next_review") { aVal = aVal ? new Date(aVal).getTime() : 0; bVal = bVal ? new Date(bVal).getTime() : 0; }
-      if (sortConfig.key === "type") { aVal = aVal || "Unknown"; bVal = bVal || "Unknown"; }
-      if (typeof aVal === "string") aVal = aVal.toLowerCase();
-      if (typeof bVal === "string") bVal = bVal.toLowerCase();
-      if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
-      if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
-      return 0;
-    });
+    if (matchReason) {
+      acc.push({ ...item, matchReason });
+    }
 
-  // Opens the dropdown and captures the button's position for fixed placement
+    return acc;
+  }, [] as VocabType[])
+  .sort((a, b) => {
+    let aVal: any = a[sortConfig.key];
+    let bVal: any = b[sortConfig.key];
+    if (sortConfig.key === "next_review") { aVal = aVal ? new Date(aVal).getTime() : 0; bVal = bVal ? new Date(bVal).getTime() : 0; }
+    if (sortConfig.key === "type") { aVal = aVal || "Unknown"; bVal = bVal || "Unknown"; }
+    if (typeof aVal === "string") aVal = aVal.toLowerCase();
+    if (typeof bVal === "string") bVal = bVal.toLowerCase();
+    if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+    if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+    return 0;
+  });
+
   const handleOpenTypeDropdown = () => {
     if (typeDropdownButtonRef.current) {
       const rect = typeDropdownButtonRef.current.getBoundingClientRect();
@@ -485,7 +485,6 @@ export default function ManageVocab() {
       {/* Background Glow */}
       <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-gradient-to-br from-pink-100/40 via-purple-50/20 to-indigo-100/40 z-0 pointer-events-none"></div>
 
-      {/* Expanded wrapper for huge desktop monitors */}
       <div className="max-w-7xl mx-auto w-full z-10 relative">
         
         {/* Header Section */}
@@ -539,7 +538,7 @@ export default function ManageVocab() {
               <input required type="text" value={formData.english} onChange={e => setFormData({ ...formData, english: e.target.value })} className="bg-slate-50 border-2 border-slate-200 rounded-[1.25rem] px-4 py-3 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner" placeholder="e.g. Beautiful" />
             </div>
 
-            {/* CUSTOM FROSTED GLASS DROPDOWN — fixed-position to escape stacking context */}
+            {/* CUSTOM FROSTED GLASS DROPDOWN */}
             <div className="flex flex-col gap-1.5 relative">
               <label className="text-xs text-slate-400 uppercase font-black tracking-widest">Type</label>
               <div className="relative">
@@ -598,7 +597,11 @@ export default function ManageVocab() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">{item.albanian}</div>
-                    <div className="text-base sm:text-lg font-bold text-slate-500">{item.english}</div>
+                    {/* SUBTLE MATCH INDICATOR */}
+                    {item.matchReason && (
+                      <div className="text-xs font-bold text-indigo-400 mt-0.5">{item.matchReason}</div>
+                    )}
+                    <div className="text-base sm:text-lg font-bold text-slate-500 mt-1">{item.english}</div>
                   </div>
                   <button onClick={(e) => handleDelete(item.id, e)} className="text-slate-300 hover:text-rose-500 transition-colors p-2.5 rounded-xl hover:bg-rose-50 bg-white" title="Delete word">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
@@ -679,6 +682,10 @@ export default function ManageVocab() {
                   <tr key={item.id} onClick={() => setSelectedWord(item)} className="hover:bg-slate-50/80 transition-colors group cursor-pointer bg-white/40">
                     <td className="px-6 py-5 font-black text-slate-800 text-base group-hover:text-indigo-600 transition-colors">
                       {item.albanian}
+                      {/* SUBTLE MATCH INDICATOR */}
+                      {item.matchReason && (
+                        <span className="block text-xs font-bold text-indigo-400 mt-1">{item.matchReason}</span>
+                      )}
                     </td>
                     <td className="px-6 py-5 font-bold text-slate-500 text-base">{item.english}</td>
                     <td className="px-6 py-5">
@@ -719,7 +726,7 @@ export default function ManageVocab() {
         </div>
       </div>
 
-      {/* TYPE DROPDOWN — rendered at root level with fixed positioning to escape all stacking contexts */}
+      {/* TYPE DROPDOWN */}
       {isTypeDropdownOpen && dropdownRect && (
         <>
           <div className="fixed inset-0 z-[200]" onClick={() => setIsTypeDropdownOpen(false)} />
@@ -760,7 +767,6 @@ export default function ManageVocab() {
               </button>
             </header>
 
-            {/* iOS Style Segmented Control Tab Switcher */}
             <div className="px-6 sm:px-8 pt-4 pb-2 border-b-2 border-slate-100">
                <div className="bg-slate-100 p-1.5 rounded-2xl flex w-full max-w-xl shadow-inner">
                   {PROMPT_TYPES.map(type => (

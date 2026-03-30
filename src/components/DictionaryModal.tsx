@@ -20,6 +20,20 @@ export default function DictionaryModal({ word, onClose, onUpdate }: { word: any
     const [isSaving, setIsSaving] = useState(false);
     const [editForm, setEditForm] = useState({ albanian: "", english: "", type: "Unknown" });
 
+    // State to hold the exact word we are targeting from a deep search
+    const [highlightValue, setHighlightValue] = useState<string>("");
+
+    // Extract the target word from the search context string
+    useEffect(() => {
+        if (word?.matchReason) {
+            // Extracts "dinte" from "↳ Matches: dinte"
+            const match = word.matchReason.match(/↳ Matches:\s+(.+)/i);
+            if (match) setHighlightValue(match[1].trim().toLowerCase());
+        } else {
+            setHighlightValue("");
+        }
+    }, [word]);
+
     const fetchGrammar = async () => {
         if (!word) return;
         setLoading(true);
@@ -62,6 +76,18 @@ export default function DictionaryModal({ word, onClose, onUpdate }: { word: any
         setEditForm({ albanian: word.albanian || "", english: word.english || "", type: word.type || "Unknown" });
         fetchGrammar();
     }, [word]);
+
+    // Auto-scroll to the highlighted cell once loading is complete
+    useEffect(() => {
+        if (!loading && highlightValue) {
+            setTimeout(() => {
+                const el = document.getElementById("highlighted-grammar-cell");
+                if (el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+            }, 300); // Small delay to ensure the DOM has painted the grid
+        }
+    }, [loading, highlightValue]);
 
     const handleSave = async () => {
         if (!word || isSaving) return;
@@ -110,26 +136,44 @@ export default function DictionaryModal({ word, onClose, onUpdate }: { word: any
         if (isEditing && (e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSave(); }
     };
 
-    const renderCell = (label: string, value: string, field: string, idx: number) => (
-        <div className="flex items-center justify-between md:block gap-2">
-            <span className="text-slate-400 font-bold text-xs uppercase tracking-wider md:block md:mb-1 whitespace-nowrap">{label}</span>
-            {isEditing ? (
-                <input
-                    type="text"
-                    value={value || ""}
-                    onChange={(e) => {
-                        const newData = [...(grammarData || [])];
-                        newData[idx][field] = e.target.value;
-                        setGrammarData(newData);
-                    }}
-                    className="w-full min-w-[80px] bg-white border-2 border-slate-200 rounded-lg px-2 py-1 text-sm outline-none focus:border-indigo-400 font-black text-right md:text-left transition-colors text-slate-700 shadow-inner"
-                    placeholder="—"
-                />
-            ) : (
-                <span className="font-black text-slate-700 text-right md:text-left">{value || "—"}</span>
-            )}
-        </div>
-    );
+    const renderCell = (label: string, value: string, field: string, idx: number) => {
+        // Check if this specific cell is the deep search target
+        const isHighlighted = highlightValue && value && value.trim().toLowerCase() === highlightValue && !isEditing;
+
+        return (
+            <div 
+                id={isHighlighted ? "highlighted-grammar-cell" : undefined}
+                className={`flex items-center justify-between md:block gap-2 transition-all duration-700 ${
+                    isHighlighted ? 'bg-indigo-100 ring-4 ring-indigo-200 rounded-xl p-3 -mx-3 -my-2 shadow-sm relative z-10' : ''
+                }`}
+            >
+                <span className={`font-bold text-xs uppercase tracking-wider md:block md:mb-1 whitespace-nowrap ${
+                    isHighlighted ? 'text-indigo-500' : 'text-slate-400'
+                }`}>
+                    {label}
+                </span>
+                {isEditing ? (
+                    <input
+                        type="text"
+                        value={value || ""}
+                        onChange={(e) => {
+                            const newData = [...(grammarData || [])];
+                            newData[idx][field] = e.target.value;
+                            setGrammarData(newData);
+                        }}
+                        className="w-full min-w-[80px] bg-white border-2 border-slate-200 rounded-lg px-2 py-1 text-sm outline-none focus:border-indigo-400 font-black text-right md:text-left transition-colors text-slate-700 shadow-inner"
+                        placeholder="—"
+                    />
+                ) : (
+                    <span className={`font-black text-right md:text-left ${
+                        isHighlighted ? 'text-indigo-600 text-xl' : 'text-slate-700'
+                    }`}>
+                        {value || "—"}
+                    </span>
+                )}
+            </div>
+        );
+    };
 
     if (!word) return null;
 
