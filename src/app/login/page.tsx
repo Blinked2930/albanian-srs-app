@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -9,6 +9,14 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  // On mount, check if we saved a username from a previous login
+  useEffect(() => {
+    const savedUsername = localStorage.getItem("vocab_username");
+    if (savedUsername) {
+      setUsername(savedUsername);
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,6 +31,9 @@ export default function LoginPage() {
       });
 
       if (res.ok) {
+        // Save the username permanently to the device so they don't have to retype it
+        localStorage.setItem("vocab_username", username);
+        
         // Redirect to homepage after successful login
         router.push("/");
         router.refresh(); // Refresh to update middleware state

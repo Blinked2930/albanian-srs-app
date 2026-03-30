@@ -45,6 +45,7 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${quicksand.variable} antialiased bg-[#fafafa]`}
+        suppressHydrationWarning
       >
         {/* Dynamic padding perfectly sizes the gap for the bottom bar */}
         <div className="pb-[calc(6rem+env(safe-area-inset-bottom))] min-h-[100dvh]">

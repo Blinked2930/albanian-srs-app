@@ -9,6 +9,10 @@ export async function POST(request: Request) {
     const validPass = process.env.BASIC_AUTH_PASS;
 
     if (validUser && validPass && username === validUser && password === validPass) {
+      // Calculate exact expiration date for iOS Safari/PWA compatibility
+      const thirtyDaysInSeconds = 60 * 60 * 24 * 30;
+      const expirationDate = new Date(Date.now() + thirtyDaysInSeconds * 1000);
+
       // Set the authentication cookie
       const cookieStore = await cookies();
       cookieStore.set({
@@ -18,7 +22,8 @@ export async function POST(request: Request) {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
-        maxAge: 60 * 60 * 24 * 30, // 30 days
+        maxAge: thirtyDaysInSeconds,
+        expires: expirationDate, // The magic bullet for iOS PWAs
       });
 
       return NextResponse.json({ success: true });
