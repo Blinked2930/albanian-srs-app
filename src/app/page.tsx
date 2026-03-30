@@ -24,54 +24,42 @@ export default function Home() {
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [grammarPerformance, setGrammarPerformance] = useState<GrammarMetric[]>([]);
 
-  // --- Cram Mode State ---
+  // --- Cram Mode & UI State ---
   const [allVocab, setAllVocab] = useState<any[]>([]);
+  const [cramGroups, setCramGroups] = useState<{id: string, name: string, vocab_ids: string[]}[]>([]);
   const [isCramModalOpen, setIsCramModalOpen] = useState(false);
   const [cramSearch, setCramSearch] = useState("");
   const [cramSelectedIds, setCramSelectedIds] = useState<string[]>([]);
+  
+  // Custom Toast Notification State
+  const [toast, setToast] = useState<{ message: string, emoji: string, type: 'error' | 'info' } | null>(null);
 
   useEffect(() => { fetchDashboardData(); }, []);
+
+  const showToast = (message: string, emoji: string = "⚠️", type: 'error' | 'info' = 'info') => {
+    setToast({ message, emoji, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   async function fetchDashboardData() {
     setLoading(true);
     const supabase = getSupabase();
-    if (!supabase) { setLoading(false); return; } // <-- FIX: always unblock loading
+    if (!supabase) { setLoading(false); return; }
 
     try {
-      // 1. Fetch Vocab — includes created_at for recency presets.
-      //    If your `vocab` table doesn't have created_at, remove it from the
-      //    select string and the preset buttons will simply return empty arrays.
-      const { data: vocabData, error: vocabError } = await supabase
-        .from('vocab')
-        .select('id, albanian, english, type, mastery_score, streak, next_review, created_at');
+      const { data: vocabData } = await supabase.from('vocab').select('id, albanian, english, type, mastery_score, streak, next_review, created_at');
+      if (vocabData) processVocab(vocabData);
 
-      if (vocabError) {
-        // If created_at doesn't exist on the table, fall back without it
-        console.warn("Vocab fetch error (possibly missing created_at column):", vocabError.message);
-        const { data: vocabFallback } = await supabase
-          .from('vocab')
-          .select('id, albanian, english, type, mastery_score, streak, next_review');
-        if (vocabFallback) processVocab(vocabFallback);
-      } else if (vocabData) {
-        processVocab(vocabData);
-      }
-
-      // 2. Fetch Grammar Metrics
-      const { data: grammarData } = await supabase
-        .from('grammar_metrics')
-        .select('dimension_type, dimension_value, mastery_score')
-        .order('mastery_score', { ascending: true })
-        .limit(5);
+      const { data: grammarData } = await supabase.from('grammar_metrics').select('dimension_type, dimension_value, mastery_score').order('mastery_score', { ascending: true }).limit(5);
       if (grammarData) setGrammarPerformance(grammarData as GrammarMetric[]);
 
-      // 3. Fetch Review Logs for Chart
+      // Fetch Custom Cram Groups
+      const { data: customGroupsData } = await supabase.from('cram_groups').select('*').order('created_at', { ascending: true });
+      if (customGroupsData) setCramGroups(customGroupsData);
+
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const { data: logData } = await supabase
-        .from('review_logs')
-        .select('score, created_at')
-        .gte('created_at', sevenDaysAgo.toISOString())
-        .order('created_at', { ascending: true });
+      const { data: logData } = await supabase.from('review_logs').select('score, created_at').gte('created_at', sevenDaysAgo.toISOString()).order('created_at', { ascending: true });
 
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const aggregatedChart: Record<string, { count: number; totalScore: number }> = {};
@@ -89,69 +77,97 @@ export default function Home() {
         });
       }
       const finalChartData: ChartData[] = Object.keys(aggregatedChart).map(key => ({
-        name: key,
-        wordsReviewed: aggregatedChart[key].count,
-        avgScore: aggregatedChart[key].count > 0
-          ? Number((aggregatedChart[key].totalScore / aggregatedChart[key].count).toFixed(2))
-          : 0
+        name: key, wordsReviewed: aggregatedChart[key].count,
+        avgScore: aggregatedChart[key].count > 0 ? Number((aggregatedChart[key].totalScore / aggregatedChart[key].count).toFixed(2)) : 0
       }));
       setChartData(finalChartData);
 
-    } catch (err) {
-      console.error("Error fetching dashboard data:", err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error("Error fetching dashboard data:", err); } 
+    finally { setLoading(false); }
   }
 
   function processVocab(vocabData: any[]) {
     setAllVocab(vocabData);
     const totalWords = vocabData.length;
-    const totalMastery = vocabData.reduce((sum, v) => sum + (v.mastery_score || 0), 0);
+    const totalMastery = vocabData.reduce((sum, v) => sum + (Number(v.mastery_score) || 0), 0);
     const globalMastery = totalWords > 0 ? totalMastery / totalWords : 0;
     const maxStreak = totalWords > 0 ? Math.max(...vocabData.map(v => v.streak || 0)) : 0;
     setKpis({ totalWords, globalMastery: Number(globalMastery.toFixed(2)), activeStreak: maxStreak });
   }
 
-  // --- Cram Preset Logic ---
+  // --- Cram Preset & Custom Group Logic ---
   const applyCramPreset = (type: 'today' | 'week' | 'struggling') => {
     const now = new Date();
     let filteredIds: string[] = [];
 
     if (type === 'today') {
       const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-      filteredIds = allVocab
-        .filter(v => v.created_at && new Date(v.created_at) >= yesterday)
-        .map(v => v.id);
+      filteredIds = allVocab.filter(v => v.created_at && new Date(v.created_at) >= yesterday).map(v => v.id);
+      if (filteredIds.length === 0) showToast("No new words added in the last 24 hours.", "⏱️");
     } else if (type === 'week') {
       const lastWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
-      filteredIds = allVocab
-        .filter(v => v.created_at && new Date(v.created_at) >= lastWeek)
-        .map(v => v.id);
+      filteredIds = allVocab.filter(v => v.created_at && new Date(v.created_at) >= lastWeek).map(v => v.id);
+      if (filteredIds.length === 0) showToast("No new words added in the last 7 days.", "📅");
     } else if (type === 'struggling') {
-      filteredIds = allVocab.filter(v => (v.mastery_score ?? 1) < 0.5).map(v => v.id);
+      filteredIds = allVocab.filter(v => Number(v.mastery_score || 0) < 0.5).map(v => v.id);
+      if (filteredIds.length === 0) showToast("No weak words found! You're doing great.", "💪");
     }
 
-    // Merge into existing selection (no duplicates)
-    setCramSelectedIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+    if (filteredIds.length > 0) setCramSelectedIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+  };
+
+  const saveCustomGroup = async () => {
+    const name = window.prompt("Name this custom study group (e.g. 'Months'):");
+    if (!name || name.trim() === "") return;
+
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const { data, error } = await supabase.from('cram_groups').insert({ name: name.trim(), vocab_ids: cramSelectedIds }).select().single();
+    
+    if (error) {
+      showToast("Failed to save group.", "❌", "error");
+    } else if (data) {
+      setCramGroups(prev => [...prev, data]);
+      showToast(`Group "${name}" saved!`, "💾");
+    }
+  };
+
+  const deleteCustomGroup = async (id: string, name: string) => {
+    if (!window.confirm(`Delete the group "${name}"?`)) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+    await supabase.from('cram_groups').delete().eq('id', id);
+    setCramGroups(prev => prev.filter(g => g.id !== id));
+    showToast(`Deleted "${name}".`, "🗑️");
   };
 
   const startCramming = () => {
     if (cramSelectedIds.length === 0) return;
     sessionStorage.setItem('cram_vocab_ids', JSON.stringify(cramSelectedIds));
+    // Clear out session memory from old drills so it starts fresh!
+    sessionStorage.removeItem('cram_drill_memory'); 
     router.push('/drill/cram');
   };
 
   const closeCramModal = () => {
-    setIsCramModalOpen(false);
-    setCramSelectedIds([]);
-    setCramSearch("");
+    setIsCramModalOpen(false); setCramSelectedIds([]); setCramSearch("");
   };
 
   return (
     <main className="min-h-screen bg-[#fafafa] flex flex-col items-center p-4 sm:p-8 relative overflow-x-hidden">
       <style dangerouslySetInnerHTML={{__html: `@keyframes floatBreathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.03); } } .animate-float-breathe { animation: floatBreathe 5s ease-in-out infinite; }`}} />
       <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-gradient-to-br from-pink-100/40 via-purple-50/20 to-indigo-100/40 z-0 pointer-events-none"></div>
+
+      {/* Custom Toast Notification */}
+      {toast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] animate-in slide-in-from-top-10 fade-in duration-300">
+          <div className="bg-slate-800/95 backdrop-blur-xl border-2 border-slate-700 shadow-2xl px-6 py-3.5 rounded-full flex items-center gap-3">
+            <span className="text-xl">{toast.emoji}</span>
+            <span className="text-white font-bold text-sm tracking-wide">{toast.message}</span>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-5xl w-full z-10 relative pt-4 sm:pt-8">
         <div className="text-center z-10 mb-8 sm:mb-12 flex flex-col items-center">
@@ -256,7 +272,7 @@ export default function Home() {
         <div className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6 animate-in fade-in" onClick={closeCramModal}>
           <div className="bg-slate-50 rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-2xl h-[90vh] sm:h-[85vh] flex flex-col shadow-2xl animate-in slide-in-from-bottom-10" onClick={e => e.stopPropagation()}>
             
-            <header className="p-6 sm:p-8 border-b-2 border-slate-200 flex justify-between items-center bg-white rounded-t-[2.5rem]">
+            <header className="p-6 sm:p-8 border-b-2 border-slate-200 flex justify-between items-center bg-white rounded-t-[2.5rem] sm:rounded-t-[2.5rem]">
                <div>
                  <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
                    <div className="bg-rose-100 text-rose-500 w-10 h-10 flex items-center justify-center rounded-xl text-xl">🔥</div>
@@ -271,11 +287,24 @@ export default function Home() {
             
             <div className="px-6 py-4 bg-white border-b-2 border-slate-200 space-y-4">
                {/* Quick Presets Row */}
-               <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                  <button onClick={() => applyCramPreset('today')} className="whitespace-nowrap bg-rose-50 text-rose-600 border border-rose-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">New Today</button>
-                  <button onClick={() => applyCramPreset('week')} className="whitespace-nowrap bg-indigo-50 text-indigo-600 border border-indigo-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Recent Adds</button>
-                  <button onClick={() => applyCramPreset('struggling')} className="whitespace-nowrap bg-amber-50 text-amber-600 border border-amber-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Weak Words</button>
-                  <button onClick={() => setCramSelectedIds([])} className="whitespace-nowrap bg-slate-100 text-slate-500 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Clear All</button>
+               <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar items-center">
+                  <button onClick={() => applyCramPreset('today')} className="shrink-0 whitespace-nowrap bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">New Today</button>
+                  <button onClick={() => applyCramPreset('week')} className="shrink-0 whitespace-nowrap bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Recent Adds</button>
+                  <button onClick={() => applyCramPreset('struggling')} className="shrink-0 whitespace-nowrap bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Weak Words</button>
+                  
+                  {/* CUSTOM GROUPS MAP */}
+                  {cramGroups.map(group => (
+                    <div key={group.id} className="relative flex items-center bg-slate-800 text-white rounded-xl overflow-hidden shrink-0 shadow-sm border border-slate-700">
+                      <button onClick={() => setCramSelectedIds(prev => Array.from(new Set([...prev, ...group.vocab_ids])))} className="px-4 py-2 text-xs font-bold hover:bg-slate-700 transition-colors">
+                        {group.name}
+                      </button>
+                      <button onClick={() => deleteCustomGroup(group.id, group.name)} className="px-2 py-2 hover:bg-rose-500 hover:text-white border-l border-slate-700 transition-colors" title="Delete Group">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  ))}
+
+                  <button onClick={() => setCramSelectedIds([])} className="shrink-0 whitespace-nowrap bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all ml-auto">Clear</button>
                </div>
 
                <div className="relative">
@@ -312,12 +341,21 @@ export default function Home() {
                 <span className="block font-black text-xl text-slate-700">{cramSelectedIds.length}</span>
                 <span className="block text-xs uppercase tracking-widest font-bold text-slate-400">Selected</span>
               </div>
-              <button 
-                onClick={startCramming} disabled={cramSelectedIds.length === 0}
-                className="bg-rose-500 hover:bg-rose-400 text-white font-black py-4 px-8 rounded-2xl transition-all active:scale-95 disabled:opacity-50 disabled:scale-100 shadow-[0_8px_20px_rgba(244,63,94,0.3)] text-lg"
-              >
-                Start Cramming
-              </button>
+              <div className="flex gap-2 sm:gap-3">
+                <button 
+                  onClick={saveCustomGroup} disabled={cramSelectedIds.length === 0}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold p-4 sm:p-5 rounded-2xl transition-all active:scale-95 disabled:opacity-50"
+                  title="Save as Custom Group"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                </button>
+                <button 
+                  onClick={startCramming} disabled={cramSelectedIds.length === 0}
+                  className="bg-rose-500 hover:bg-rose-400 text-white font-black py-4 px-6 sm:px-8 rounded-2xl transition-all active:scale-95 disabled:opacity-50 shadow-[0_8px_20px_rgba(244,63,94,0.3)] text-base sm:text-lg"
+                >
+                  Start Cramming
+                </button>
+              </div>
             </footer>
           </div>
         </div>
