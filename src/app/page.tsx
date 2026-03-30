@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 const getSupabase = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -16,6 +16,7 @@ const getSupabase = () => {
 interface ChartData { name: string; avgScore: number; wordsReviewed: number; }
 interface GrammarMetric { dimension_type: string; dimension_value: string; mastery_score: number; }
 interface KPIState { totalWords: number; globalMastery: number; activeStreak: number; }
+interface CramGroup { id: string; name: string; vocab_ids: string[]; }
 
 export default function Home() {
   const router = useRouter();
@@ -26,19 +27,22 @@ export default function Home() {
 
   // --- Cram Mode & UI State ---
   const [allVocab, setAllVocab] = useState<any[]>([]);
-  const [cramGroups, setCramGroups] = useState<{id: string, name: string, vocab_ids: string[]}[]>([]);
   const [isCramModalOpen, setIsCramModalOpen] = useState(false);
   const [cramSearch, setCramSearch] = useState("");
   const [cramSelectedIds, setCramSelectedIds] = useState<string[]>([]);
+  const [cramGroups, setCramGroups] = useState<CramGroup[]>([]);
   
-  // Custom Toast Notification State
+  // Custom Modal & Toast State
+  const [isNamingGroup, setIsNamingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [isSavingGroup, setIsSavingGroup] = useState(false);
   const [toast, setToast] = useState<{ message: string, emoji: string, type: 'error' | 'info' } | null>(null);
 
   useEffect(() => { fetchDashboardData(); }, []);
 
   const showToast = (message: string, emoji: string = "⚠️", type: 'error' | 'info' = 'info') => {
     setToast({ message, emoji, type });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 3000); 
   };
 
   async function fetchDashboardData() {
@@ -47,15 +51,21 @@ export default function Home() {
     if (!supabase) { setLoading(false); return; }
 
     try {
-      const { data: vocabData } = await supabase.from('vocab').select('id, albanian, english, type, mastery_score, streak, next_review, created_at');
+      const { data: vocabData, error: vocabError } = await supabase
+        .from('vocab')
+        .select('id, albanian, english, type, mastery_score, streak, next_review, created_at');
+
       if (vocabData) processVocab(vocabData);
 
-      const { data: grammarData } = await supabase.from('grammar_metrics').select('dimension_type, dimension_value, mastery_score').order('mastery_score', { ascending: true }).limit(5);
-      if (grammarData) setGrammarPerformance(grammarData as GrammarMetric[]);
+      const { data: groupData } = await supabase.from('cram_groups').select('*').order('created_at', { ascending: false });
+      if (groupData) setCramGroups(groupData);
 
-      // Fetch Custom Cram Groups
-      const { data: customGroupsData } = await supabase.from('cram_groups').select('*').order('created_at', { ascending: true });
-      if (customGroupsData) setCramGroups(customGroupsData);
+      const { data: grammarData } = await supabase
+        .from('grammar_metrics')
+        .select('dimension_type, dimension_value, mastery_score')
+        .order('mastery_score', { ascending: true })
+        .limit(5);
+      if (grammarData) setGrammarPerformance(grammarData as GrammarMetric[]);
 
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -70,10 +80,7 @@ export default function Home() {
       if (logData) {
         logData.forEach(log => {
           const dayName = days[new Date(log.created_at).getDay()];
-          if (aggregatedChart[dayName]) {
-            aggregatedChart[dayName].count += 1;
-            aggregatedChart[dayName].totalScore += log.score;
-          }
+          if (aggregatedChart[dayName]) { aggregatedChart[dayName].count += 1; aggregatedChart[dayName].totalScore += log.score; }
         });
       }
       const finalChartData: ChartData[] = Object.keys(aggregatedChart).map(key => ({
@@ -95,7 +102,6 @@ export default function Home() {
     setKpis({ totalWords, globalMastery: Number(globalMastery.toFixed(2)), activeStreak: maxStreak });
   }
 
-  // --- Cram Preset & Custom Group Logic ---
   const applyCramPreset = (type: 'today' | 'week' | 'struggling') => {
     const now = new Date();
     let filteredIds: string[] = [];
@@ -113,45 +119,51 @@ export default function Home() {
       if (filteredIds.length === 0) showToast("No weak words found! You're doing great.", "💪");
     }
 
-    if (filteredIds.length > 0) setCramSelectedIds(prev => Array.from(new Set([...prev, ...filteredIds])));
-  };
-
-  const saveCustomGroup = async () => {
-    const name = window.prompt("Name this custom study group (e.g. 'Months'):");
-    if (!name || name.trim() === "") return;
-
-    const supabase = getSupabase();
-    if (!supabase) return;
-
-    const { data, error } = await supabase.from('cram_groups').insert({ name: name.trim(), vocab_ids: cramSelectedIds }).select().single();
-    
-    if (error) {
-      showToast("Failed to save group.", "❌", "error");
-    } else if (data) {
-      setCramGroups(prev => [...prev, data]);
-      showToast(`Group "${name}" saved!`, "💾");
+    if (filteredIds.length > 0) {
+      setCramSelectedIds(prev => Array.from(new Set([...prev, ...filteredIds])));
     }
   };
 
-  const deleteCustomGroup = async (id: string, name: string) => {
-    if (!window.confirm(`Delete the group "${name}"?`)) return;
+  const handleSaveGroup = async () => {
+    if (!newGroupName.trim() || cramSelectedIds.length === 0) return;
+    setIsSavingGroup(true);
     const supabase = getSupabase();
-    if (!supabase) return;
-    await supabase.from('cram_groups').delete().eq('id', id);
-    setCramGroups(prev => prev.filter(g => g.id !== id));
-    showToast(`Deleted "${name}".`, "🗑️");
+    if (supabase) {
+      const newGroup = { name: newGroupName.trim(), vocab_ids: cramSelectedIds };
+      const { data, error } = await supabase.from('cram_groups').insert([newGroup]).select().single();
+      if (data) {
+        setCramGroups(prev => [data, ...prev]);
+        setNewGroupName("");
+        setIsNamingGroup(false);
+        showToast(`Saved group "${data.name}"`, "📁");
+      }
+    }
+    setIsSavingGroup(false);
+  };
+
+  const handleDeleteGroup = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const supabase = getSupabase();
+    if (supabase) {
+      await supabase.from('cram_groups').delete().eq('id', id);
+      setCramGroups(prev => prev.filter(g => g.id !== id));
+      showToast("Group deleted", "🗑️");
+    }
+  };
+
+  const loadGroup = (ids: string[]) => {
+    setCramSelectedIds(prev => Array.from(new Set([...prev, ...ids])));
   };
 
   const startCramming = () => {
     if (cramSelectedIds.length === 0) return;
     sessionStorage.setItem('cram_vocab_ids', JSON.stringify(cramSelectedIds));
-    // Clear out session memory from old drills so it starts fresh!
-    sessionStorage.removeItem('cram_drill_memory'); 
+    sessionStorage.removeItem('cram_drill_state'); 
     router.push('/drill/cram');
   };
 
   const closeCramModal = () => {
-    setIsCramModalOpen(false); setCramSelectedIds([]); setCramSearch("");
+    setIsCramModalOpen(false); setCramSelectedIds([]); setCramSearch(""); setNewGroupName(""); setIsNamingGroup(false);
   };
 
   return (
@@ -159,7 +171,6 @@ export default function Home() {
       <style dangerouslySetInnerHTML={{__html: `@keyframes floatBreathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.03); } } .animate-float-breathe { animation: floatBreathe 5s ease-in-out infinite; }`}} />
       <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-gradient-to-br from-pink-100/40 via-purple-50/20 to-indigo-100/40 z-0 pointer-events-none"></div>
 
-      {/* Custom Toast Notification */}
       {toast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] animate-in slide-in-from-top-10 fade-in duration-300">
           <div className="bg-slate-800/95 backdrop-blur-xl border-2 border-slate-700 shadow-2xl px-6 py-3.5 rounded-full flex items-center gap-3">
@@ -202,7 +213,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* QUICK ACTIONS */}
               <div className="md:col-span-5 grid grid-cols-2 gap-3 sm:gap-5">
                 <button onClick={() => setIsCramModalOpen(true)} className="col-span-2 bg-rose-500 hover:bg-rose-400 text-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(244,63,94,0.3)] border-2 border-rose-400/50">
                   <span className="text-2xl sm:text-3xl">🔥</span>
@@ -219,7 +229,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Bottom Row: Chart and Grammar */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 pb-12">
               <section className="bg-white/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] border-2 border-white shadow-sm flex flex-col">
                 <h2 className="text-xl sm:text-2xl font-black flex items-center gap-3 text-slate-700 mb-6">
@@ -272,7 +281,7 @@ export default function Home() {
         <div className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6 animate-in fade-in" onClick={closeCramModal}>
           <div className="bg-slate-50 rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-2xl h-[90vh] sm:h-[85vh] flex flex-col shadow-2xl animate-in slide-in-from-bottom-10" onClick={e => e.stopPropagation()}>
             
-            <header className="p-6 sm:p-8 border-b-2 border-slate-200 flex justify-between items-center bg-white rounded-t-[2.5rem] sm:rounded-t-[2.5rem]">
+            <header className="p-6 sm:p-8 border-b-2 border-slate-200 flex justify-between items-center bg-white rounded-t-[2.5rem]">
                <div>
                  <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
                    <div className="bg-rose-100 text-rose-500 w-10 h-10 flex items-center justify-center rounded-xl text-xl">🔥</div>
@@ -286,32 +295,29 @@ export default function Home() {
             </header>
             
             <div className="px-6 py-4 bg-white border-b-2 border-slate-200 space-y-4">
-               {/* Quick Presets Row */}
-               <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar items-center">
-                  <button onClick={() => applyCramPreset('today')} className="shrink-0 whitespace-nowrap bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">New Today</button>
-                  <button onClick={() => applyCramPreset('week')} className="shrink-0 whitespace-nowrap bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Recent Adds</button>
-                  <button onClick={() => applyCramPreset('struggling')} className="shrink-0 whitespace-nowrap bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Weak Words</button>
-                  
-                  {/* CUSTOM GROUPS MAP */}
-                  {cramGroups.map(group => (
-                    <div key={group.id} className="relative flex items-center bg-slate-800 text-white rounded-xl overflow-hidden shrink-0 shadow-sm border border-slate-700">
-                      <button onClick={() => setCramSelectedIds(prev => Array.from(new Set([...prev, ...group.vocab_ids])))} className="px-4 py-2 text-xs font-bold hover:bg-slate-700 transition-colors">
-                        {group.name}
-                      </button>
-                      <button onClick={() => deleteCustomGroup(group.id, group.name)} className="px-2 py-2 hover:bg-rose-500 hover:text-white border-l border-slate-700 transition-colors" title="Delete Group">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                      </button>
-                    </div>
-                  ))}
-
-                  <button onClick={() => setCramSelectedIds([])} className="shrink-0 whitespace-nowrap bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all ml-auto">Clear</button>
+               <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                  <button onClick={() => applyCramPreset('today')} className="whitespace-nowrap bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">New Today</button>
+                  <button onClick={() => applyCramPreset('week')} className="whitespace-nowrap bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Recent Adds</button>
+                  <button onClick={() => applyCramPreset('struggling')} className="whitespace-nowrap bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Weak Words</button>
+                  <button onClick={() => setCramSelectedIds([])} className="whitespace-nowrap bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Clear All</button>
                </div>
+
+               {cramGroups.length > 0 && (
+                 <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                    {cramGroups.map(group => (
+                      <div key={group.id} className="relative group inline-flex items-center bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm">
+                         <button onClick={() => loadGroup(group.vocab_ids)} className="px-3 py-2 whitespace-nowrap active:scale-95">{group.name} ({group.vocab_ids.length})</button>
+                         <button onClick={(e) => handleDeleteGroup(group.id, e)} className="px-2 py-2 text-slate-400 hover:text-rose-400 transition-colors border-l border-slate-700 active:scale-95"><svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                      </div>
+                    ))}
+                 </div>
+               )}
 
                <div className="relative">
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                   <input 
                     type="text" placeholder="Search by Albanian or English..." value={cramSearch} onChange={e => setCramSearch(e.target.value)} 
-                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl pl-12 pr-4 py-4 font-bold text-lg text-slate-700 outline-none focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-50 transition-all shadow-inner"
+                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl pl-12 pr-4 py-3.5 font-bold text-base text-slate-700 outline-none focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-50 transition-all shadow-inner"
                   />
                </div>
             </div>
@@ -322,14 +328,14 @@ export default function Home() {
                  return (
                    <button 
                      key={word.id} onClick={() => setCramSelectedIds(prev => isSelected ? prev.filter(id => id !== word.id) : [...prev, word.id])}
-                     className={`w-full flex items-center justify-between p-5 mb-3 rounded-2xl border-2 transition-all text-left active:scale-[0.98] ${isSelected ? 'bg-white border-rose-400 shadow-[0_4px_15px_rgba(244,63,94,0.15)] ring-4 ring-rose-50' : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'}`}
+                     className={`w-full flex items-center justify-between p-4 mb-2.5 rounded-2xl border-2 transition-all text-left active:scale-[0.98] ${isSelected ? 'bg-white border-rose-400 shadow-[0_4px_15px_rgba(244,63,94,0.15)] ring-4 ring-rose-50' : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'}`}
                    >
                      <div>
-                       <div className={`font-black text-xl mb-0.5 ${isSelected ? 'text-rose-600' : 'text-slate-700'}`}>{word.albanian}</div>
-                       <div className={`font-bold text-sm ${isSelected ? 'text-rose-400' : 'text-slate-400'}`}>{word.english}</div>
+                       <div className={`font-black text-lg mb-0.5 ${isSelected ? 'text-rose-600' : 'text-slate-700'}`}>{word.albanian}</div>
+                       <div className={`font-bold text-xs ${isSelected ? 'text-rose-400' : 'text-slate-400'}`}>{word.english}</div>
                      </div>
-                     <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-rose-500 border-rose-500 text-white' : 'bg-slate-100 border-slate-300'}`}>
-                       {isSelected && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
+                     <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-rose-500 border-rose-500 text-white' : 'bg-slate-100 border-slate-300'}`}>
+                       {isSelected && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
                      </div>
                    </button>
                  );
@@ -343,20 +349,44 @@ export default function Home() {
               </div>
               <div className="flex gap-2 sm:gap-3">
                 <button 
-                  onClick={saveCustomGroup} disabled={cramSelectedIds.length === 0}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold p-4 sm:p-5 rounded-2xl transition-all active:scale-95 disabled:opacity-50"
-                  title="Save as Custom Group"
+                  onClick={() => setIsNamingGroup(true)} disabled={cramSelectedIds.length === 0}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-500 font-black py-3.5 px-4 rounded-2xl transition-all active:scale-95 disabled:opacity-50"
+                  title="Save as Group"
                 >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                  <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                 </button>
                 <button 
                   onClick={startCramming} disabled={cramSelectedIds.length === 0}
-                  className="bg-rose-500 hover:bg-rose-400 text-white font-black py-4 px-6 sm:px-8 rounded-2xl transition-all active:scale-95 disabled:opacity-50 shadow-[0_8px_20px_rgba(244,63,94,0.3)] text-base sm:text-lg"
+                  className="bg-rose-500 hover:bg-rose-400 text-white font-black py-3.5 px-6 sm:px-8 rounded-2xl transition-all active:scale-95 disabled:opacity-50 shadow-[0_8px_20px_rgba(244,63,94,0.3)] text-lg"
                 >
                   Start Cramming
                 </button>
               </div>
             </footer>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM BEAUTIFUL NAMING MODAL */}
+      {isNamingGroup && (
+        <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsNamingGroup(false)}>
+          <div className="bg-white rounded-[2rem] p-6 sm:p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-black text-slate-800 mb-2">Save Custom Group</h3>
+            <p className="text-slate-500 text-sm font-bold mb-6">Name your group of {cramSelectedIds.length} words to quickly cram them later.</p>
+            
+            <input 
+              type="text" placeholder="e.g. Host Family Verbs" 
+              value={newGroupName} onChange={e => setNewGroupName(e.target.value)} 
+              autoFocus 
+              className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-rose-400 mb-6" 
+            />
+            
+            <div className="flex justify-end gap-3">
+               <button onClick={() => setIsNamingGroup(false)} className="px-5 py-3 rounded-xl font-black text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors active:scale-95">Cancel</button>
+               <button onClick={handleSaveGroup} disabled={!newGroupName.trim() || isSavingGroup} className="px-5 py-3 rounded-xl font-black text-white bg-rose-500 hover:bg-rose-400 transition-colors disabled:opacity-50 active:scale-95">
+                 {isSavingGroup ? "Saving..." : "Save Group"}
+               </button>
+            </div>
           </div>
         </div>
       )}

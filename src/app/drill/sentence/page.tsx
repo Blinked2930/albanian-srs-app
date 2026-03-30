@@ -38,6 +38,14 @@ export default function SentenceDrill() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showTarget, setShowTarget] = useState(false);
 
+  // --- PERSISTENCE: Save State ---
+  useEffect(() => {
+    if (phase !== "loading") {
+      const stateToSave = { phase, currentPrompt, userInput, feedback, caughtUp, showTarget };
+      sessionStorage.setItem('sentence_drill_state', JSON.stringify(stateToSave));
+    }
+  }, [phase, currentPrompt, userInput, feedback, caughtUp, showTarget]);
+
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
@@ -65,7 +73,20 @@ export default function SentenceDrill() {
     } else {
       dbVocabRef.current = []; setDbVocab([]);
     }
-    setPhase("setup");
+
+    // --- PERSISTENCE: Rehydrate ---
+    const saved = sessionStorage.getItem('sentence_drill_state');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setPhase(parsed.phase);
+      setCurrentPrompt(parsed.currentPrompt);
+      setUserInput(parsed.userInput);
+      setFeedback(parsed.feedback);
+      setCaughtUp(parsed.caughtUp);
+      setShowTarget(parsed.showTarget || false);
+    } else {
+      setPhase("setup");
+    }
   }
 
   const handleGenerateSentences = async () => {
@@ -306,7 +327,7 @@ export default function SentenceDrill() {
       <div className="max-w-md sm:max-w-xl md:max-w-2xl w-full bg-white/80 backdrop-blur-xl p-6 sm:p-10 rounded-[2.5rem] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border-2 border-white relative">
         
         <header className="mb-6 sm:mb-8 text-center relative">
-          <button onClick={() => setPhase("setup")} className="absolute left-0 top-0 text-slate-300 hover:text-slate-500 transition-colors p-2 sm:p-0">
+          <button onClick={() => { setPhase("setup"); sessionStorage.removeItem('sentence_drill_state'); }} className="absolute left-0 top-0 text-slate-300 hover:text-slate-500 transition-colors p-2 sm:p-0">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-7 sm:h-7"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
           
@@ -327,7 +348,7 @@ export default function SentenceDrill() {
             <p className="text-5xl sm:text-6xl mb-4 animate-bounce">🎉</p>
             <p className="text-2xl sm:text-3xl font-black text-slate-700 mb-2 sm:mb-4">All caught up!</p>
             <p className="text-slate-400 text-sm sm:text-base mb-8 font-bold">You crushed your sentences for now.</p>
-            <button onClick={() => setPhase("setup")} className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-black py-3 sm:py-3.5 px-6 sm:px-8 rounded-full transition-colors inline-flex items-center gap-2 sm:text-base">
+            <button onClick={() => { setPhase("setup"); sessionStorage.removeItem('sentence_drill_state'); }} className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-black py-3 sm:py-3.5 px-6 sm:px-8 rounded-full transition-colors inline-flex items-center gap-2 sm:text-base">
                Back to Hub
             </button>
           </div>

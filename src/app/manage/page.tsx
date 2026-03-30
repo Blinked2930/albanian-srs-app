@@ -76,6 +76,11 @@ export default function ManageVocab() {
   const [vocabList, setVocabList] = useState<VocabType[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Deep Search States
+  const [allConjugations, setAllConjugations] = useState<any[]>([]);
+  const [allNouns, setAllNouns] = useState<any[]>([]);
+  const [allAdjectives, setAllAdjectives] = useState<any[]>([]);
+
   // Search and Sort State
   const [searchQuery, setSearchQuery] = useState("");
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: "asc" | "desc" }>({
@@ -131,19 +136,21 @@ export default function ManageVocab() {
       const supabase = getSupabase();
       if (!supabase) return;
 
-      const { data, error } = await supabase
-        .from("vocab")
-        .select("*, review_logs(score, created_at)")
-        .order("next_review", { ascending: true, nullsFirst: true });
+      // Fetch core vocab + detail tables simultaneously to power deep search
+      const [vocabRes, conjRes, nounRes, adjRes] = await Promise.all([
+        supabase.from("vocab").select("*, review_logs(score, created_at)").order("next_review", { ascending: true, nullsFirst: true }),
+        supabase.from("conjugations").select("*"),
+        supabase.from("noun_declensions").select("*"),
+        supabase.from("adjective_agreements").select("*")
+      ]);
 
-      if (error) {
-        console.error("Error fetching vocab:", error);
-        return;
-      }
+      if (vocabRes.error) console.error("Error fetching vocab:", vocabRes.error);
+      else if (vocabRes.data) setVocabList(vocabRes.data as VocabType[]);
 
-      if (data) {
-        setVocabList(data as VocabType[]);
-      }
+      if (conjRes.data) setAllConjugations(conjRes.data);
+      if (nounRes.data) setAllNouns(nounRes.data);
+      if (adjRes.data) setAllAdjectives(adjRes.data);
+
     } catch (err) {
       console.error("Failed to load vocab:", err);
     } finally {
@@ -405,8 +412,51 @@ export default function ManageVocab() {
 
   const processedVocab = [...vocabList]
     .filter(item => {
-      const q = searchQuery.toLowerCase();
-      return item.albanian.toLowerCase().includes(q) || item.english.toLowerCase().includes(q);
+      const q = searchQuery.trim().toLowerCase();
+      if (!q) return true;
+
+      // 1. Check root Albanian and English
+      if (item.albanian.toLowerCase().includes(q) || item.english.toLowerCase().includes(q)) return true;
+
+      // 2. Check Verbs (Conjugations)
+      if (item.type === "Verb" || item.type === "Command") {
+        return allConjugations.some(c => 
+          c.vocab_id === item.id && (
+            (c.une && c.une.toLowerCase().includes(q)) ||
+            (c.ti && c.ti.toLowerCase().includes(q)) ||
+            (c.ai_ajo && c.ai_ajo.toLowerCase().includes(q)) ||
+            (c.ne && c.ne.toLowerCase().includes(q)) ||
+            (c.ju && c.ju.toLowerCase().includes(q)) ||
+            (c.ata_ato && c.ata_ato.toLowerCase().includes(q))
+          )
+        );
+      }
+
+      // 3. Check Adjectives (Agreements)
+      if (item.type === "Adjective") {
+        return allAdjectives.some(a => 
+          a.vocab_id === item.id && (
+            (a.masc_sg && a.masc_sg.toLowerCase().includes(q)) ||
+            (a.fem_sg && a.fem_sg.toLowerCase().includes(q)) ||
+            (a.masc_pl && a.masc_pl.toLowerCase().includes(q)) ||
+            (a.fem_pl && a.fem_pl.toLowerCase().includes(q))
+          )
+        );
+      }
+
+      // 4. Check Nouns (Declensions)
+      if (item.type?.startsWith("Noun")) {
+        return allNouns.some(n => 
+          n.vocab_id === item.id && (
+            (n.indef_sg && n.indef_sg.toLowerCase().includes(q)) ||
+            (n.def_sg && n.def_sg.toLowerCase().includes(q)) ||
+            (n.indef_pl && n.indef_pl.toLowerCase().includes(q)) ||
+            (n.def_pl && n.def_pl.toLowerCase().includes(q))
+          )
+        );
+      }
+
+      return false;
     })
     .sort((a, b) => {
       let aVal: any = a[sortConfig.key];
@@ -521,7 +571,7 @@ export default function ManageVocab() {
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
             <input
               type="text"
-              placeholder="Search vocabulary..."
+              placeholder="Search vocabulary & conjugations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-white/80 backdrop-blur-md border-2 border-white rounded-[1.5rem] pl-12 pr-4 py-4 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white shadow-sm transition-all"
@@ -703,7 +753,7 @@ export default function ManageVocab() {
                 <div className="bg-indigo-100 p-2 rounded-xl text-indigo-500">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" x2="20" y1="19" y2="19" /></svg>
                 </div>
-                AI Prompt Engineering
+                Data Pipeline Prompt
               </h3>
               <button onClick={() => setIsPromptModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-2 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors" title="Close">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
@@ -725,12 +775,12 @@ export default function ManageVocab() {
                </div>
             </div>
 
-            <div className="flex-1 overflow-hidden flex flex-col p-6 sm:p-8 bg-transparent">
+            <div className="flex-1 overflow-hidden flex flex-col p-6 sm:p-8 bg-slate-50/50">
               {isEditingPrompt ? (
                 <textarea value={editedPrompt} onChange={e => setEditedPrompt(e.target.value)} spellCheck={false} className="flex-1 w-full bg-white border-2 border-indigo-200 focus:border-indigo-400 outline-none rounded-[1.5rem] p-6 font-mono text-sm sm:text-base text-slate-700 resize-none transition-all shadow-inner" />
               ) : (
                 <div className="flex-1 w-full bg-white border-2 border-slate-200 rounded-[1.5rem] p-6 overflow-auto font-mono text-sm sm:text-base text-slate-600 whitespace-pre-wrap shadow-inner leading-relaxed">
-                  {promptsDict[activePromptKey] || "No prompt saved. Edit to create one!"}
+                  {promptsDict[activePromptKey] || "Loading prompt..."}
                 </div>
               )}
             </div>
@@ -758,6 +808,7 @@ export default function ManageVocab() {
           </div>
         </div>
       )}
+
     </main>
   );
 }
