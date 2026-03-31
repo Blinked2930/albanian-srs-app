@@ -114,7 +114,7 @@ export default function Home() {
     setKpis({ totalWords, globalMastery: Number(globalMastery.toFixed(2)), activeStreak: maxStreak });
   }
 
-  const applyCramPreset = (type: 'today' | 'week' | 'struggling' | 'failed') => {
+  const applyCramPreset = (type: 'today' | 'yesterday' | 'week' | 'struggling' | 'failed') => {
     const now = new Date();
     let filteredIds: string[] = [];
 
@@ -123,6 +123,12 @@ export default function Home() {
       filteredIds = allVocab.filter(v => v.created_at && new Date(v.created_at) >= yesterday).map(v => v.id);
       if (filteredIds.length === 0) showToast("No new words added in the last 24 hours.", "⏱️");
       
+    } else if (type === 'yesterday') {
+      const oneDayAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+      const twoDaysAgo = new Date(now.getTime() - (48 * 60 * 60 * 1000));
+      filteredIds = allVocab.filter(v => v.created_at && new Date(v.created_at) >= twoDaysAgo && new Date(v.created_at) < oneDayAgo).map(v => v.id);
+      if (filteredIds.length === 0) showToast("No words added yesterday.", "⏳");
+
     } else if (type === 'week') {
       const lastWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
       filteredIds = allVocab.filter(v => v.created_at && new Date(v.created_at) >= lastWeek).map(v => v.id);
@@ -344,6 +350,7 @@ export default function Home() {
             <div className="px-6 py-4 bg-white border-b-2 border-slate-200 space-y-4">
                <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
                   <button onClick={() => applyCramPreset('today')} className="whitespace-nowrap bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">New Today</button>
+                  <button onClick={() => applyCramPreset('yesterday')} className="whitespace-nowrap bg-teal-50 hover:bg-teal-100 text-teal-600 border border-teal-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Yesterday</button>
                   <button onClick={() => applyCramPreset('week')} className="whitespace-nowrap bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Recent Adds</button>
                   <button onClick={() => applyCramPreset('struggling')} className="whitespace-nowrap bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Weak Words</button>
                   <button onClick={() => applyCramPreset('failed')} className="whitespace-nowrap bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Recent Fails</button>
