@@ -27,6 +27,10 @@ export default function SentenceDrill() {
   const [modalWord, setModalWord] = useState<any | null>(null);
   const [mnemonic, setMnemonic] = useState<string | null>(null);
   const [isGeneratingMnemonic, setIsGeneratingMnemonic] = useState(false);
+  
+  // NEW STATE: For the Sentence Explanation
+  const [explanation, setExplanation] = useState<string | null>(null);
+  const [isGeneratingExplanation, setIsGeneratingExplanation] = useState(false);
 
   const [dbVocab, setDbVocab] = useState<any[]>([]);
   const dbVocabRef = useRef<any[]>([]);
@@ -41,10 +45,10 @@ export default function SentenceDrill() {
   // --- PERSISTENCE: Save State ---
   useEffect(() => {
     if (phase !== "loading") {
-      const stateToSave = { phase, currentPrompt, userInput, feedback, caughtUp, showTarget };
+      const stateToSave = { phase, currentPrompt, userInput, feedback, caughtUp, showTarget, explanation };
       sessionStorage.setItem('sentence_drill_state', JSON.stringify(stateToSave));
     }
-  }, [phase, currentPrompt, userInput, feedback, caughtUp, showTarget]);
+  }, [phase, currentPrompt, userInput, feedback, caughtUp, showTarget, explanation]);
 
   useEffect(() => { loadData(); }, []);
 
@@ -84,6 +88,7 @@ export default function SentenceDrill() {
       setFeedback(parsed.feedback);
       setCaughtUp(parsed.caughtUp);
       setShowTarget(parsed.showTarget || false);
+      setExplanation(parsed.explanation || null);
     } else {
       setPhase("setup");
     }
@@ -141,7 +146,11 @@ export default function SentenceDrill() {
   const generatePrompt = () => {
     if (actionLock.current) return;
     actionLock.current = true;
-    setFeedback(null); setUserInput(""); setMnemonic(null); setShowTarget(false);
+    setFeedback(null); 
+    setUserInput(""); 
+    setMnemonic(null); 
+    setExplanation(null); // Clear explanation state on next
+    setShowTarget(false);
     pickAndSetPrompt(dbVocabRef.current);
     setTimeout(() => { actionLock.current = false; }, 300);
   };
@@ -159,6 +168,33 @@ export default function SentenceDrill() {
       else alert("Failed to generate mnemonic.");
     } catch (err) { console.error(err); } 
     finally { setIsGeneratingMnemonic(false); }
+  };
+
+  // NEW FUNCTION: Request grammar explanation from Gemini with precise error catching
+  const handleExplainSentence = async () => {
+    if (!currentPrompt) return;
+    setIsGeneratingExplanation(true); setExplanation(null);
+    try {
+      // Reconstruct the full sentence by swapping the blank with the target word
+      const fullAlbanianSentence = currentPrompt.blanked_albanian.replace("___", currentPrompt.expected);
+      const res = await fetch('/api/explain-sentence', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ albanian_sentence: fullAlbanianSentence, english_translation: currentPrompt.english_translation })
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        setExplanation(data.explanation);
+      } else {
+        // This will expose the *exact* error to you on the screen
+        alert(`API Error: ${data.error || "Failed to generate explanation."}`);
+      }
+    } catch (err: any) { 
+      console.error(err); 
+      alert(`Network Error: ${err.message}`);
+    } finally { 
+      setIsGeneratingExplanation(false); 
+    }
   };
 
   async function updateMastery(prompt: any, score: number) {
@@ -416,7 +452,7 @@ export default function SentenceDrill() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 sm:gap-3">
+                  <div className="flex gap-2 sm:gap-3 w-full">
                     {!mnemonic && !isGeneratingMnemonic && (
                       <button onClick={handleGenerateMnemonic} type="button" className="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 font-bold py-3 sm:py-3.5 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform text-sm sm:text-base">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-5 sm:h-5"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/></svg>
@@ -426,6 +462,18 @@ export default function SentenceDrill() {
                     {isGeneratingMnemonic && (
                        <div className="flex-1 bg-slate-50 text-emerald-400 font-bold py-3 sm:py-3.5 rounded-xl flex items-center justify-center gap-2 text-sm sm:text-base">
                           <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-emerald-200 border-t-emerald-500 rounded-full animate-spin"></div>
+                       </div>
+                    )}
+
+                    {!explanation && !isGeneratingExplanation && (
+                      <button onClick={handleExplainSentence} type="button" className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-500 font-bold py-3 sm:py-3.5 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform text-sm sm:text-base">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-5 sm:h-5"><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></svg>
+                        Explain
+                      </button>
+                    )}
+                    {isGeneratingExplanation && (
+                       <div className="flex-1 bg-slate-50 text-indigo-400 font-bold py-3 sm:py-3.5 rounded-xl flex items-center justify-center gap-2 text-sm sm:text-base">
+                          <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin"></div>
                        </div>
                     )}
                     
@@ -438,6 +486,14 @@ export default function SentenceDrill() {
                     <div className="bg-white border-2 border-emerald-100 rounded-[1.5rem] p-4 sm:p-5 text-left shadow-sm mt-1 sm:mt-2">
                       <div className="prose prose-sm leading-snug font-medium text-slate-600"
                         dangerouslySetInnerHTML={{ __html: mnemonic.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong class="text-emerald-600 font-black">$1</strong>') }}
+                      />
+                    </div>
+                  )}
+
+                  {explanation && (
+                    <div className="bg-white border-2 border-indigo-100 rounded-[1.5rem] p-4 sm:p-5 text-left shadow-sm mt-1 sm:mt-2">
+                      <div className="prose prose-sm leading-snug font-medium text-slate-600 space-y-2"
+                        dangerouslySetInnerHTML={{ __html: explanation.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-600 font-black">$1</strong>') }}
                       />
                     </div>
                   )}

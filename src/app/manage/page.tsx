@@ -38,7 +38,8 @@ type SortKey = "albanian" | "english" | "type" | "next_review" | "confidence" | 
 const PROMPT_TYPES = [
   { id: "gemini_sentence_prompt", label: "Sentences" },
   { id: "gemini_mnemonic_prompt", label: "Mnemonics" },
-  { id: "gemini_sql_prompt", label: "SQL Pipeline" }
+  { id: "gemini_sql_prompt", label: "SQL Pipeline" },
+  { id: "gemini_sentence_explanation_prompt", label: "Explain Sentence" } // NEW PROMPT ADDED
 ];
 
 // ────────────────────────────────────────────────────────────────
@@ -166,7 +167,7 @@ export default function ManageVocab() {
       const { data, error } = await supabase
         .from("app_settings")
         .select("key, value")
-        .in("key", ["gemini_sql_prompt", "gemini_sentence_prompt", "gemini_mnemonic_prompt"]);
+        .in("key", ["gemini_sql_prompt", "gemini_sentence_prompt", "gemini_mnemonic_prompt", "gemini_sentence_explanation_prompt"]); // ADDED TO DB FETCH
 
       if (error) {
         console.error("Error fetching prompts:", error);
@@ -589,6 +590,7 @@ export default function ManageVocab() {
               <input required type="text" value={formData.english} onChange={e => setFormData({ ...formData, english: e.target.value })} className="bg-slate-50 border-2 border-slate-200 rounded-[1.25rem] px-4 py-3 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner" placeholder="e.g. Beautiful" />
             </div>
 
+            {/* CUSTOM FROSTED GLASS DROPDOWN */}
             <div className="flex flex-col gap-1.5 relative">
               <label className="text-xs text-slate-400 uppercase font-black tracking-widest">Type</label>
               <div className="relative">
