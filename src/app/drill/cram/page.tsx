@@ -110,7 +110,6 @@ export default function CramDrill() {
   }, [currentPrompt, feedback, modalWord]);
 
   function pickNextWord(vocabList: any[], progressMap: Record<string, number>, lastWordId: string | null) {
-    // Find all words that haven't hit 3 points yet
     const activeWords = vocabList.filter(w => (progressMap[w.id] || 0) < 3);
     
     if (activeWords.length === 0) {
@@ -118,7 +117,6 @@ export default function CramDrill() {
       return;
     }
 
-    // Prevent back-to-back same word if there are others available
     let selectable = activeWords;
     if (activeWords.length > 1 && lastWordId) {
       selectable = activeWords.filter(w => w.id !== lastWordId);
@@ -141,7 +139,7 @@ export default function CramDrill() {
     actionLock.current = true;
     setFeedback(null); 
     setUserInput(""); 
-    setMnemonic(null); // Clear hint on next word
+    setMnemonic(null); 
     pickNextWord(dbVocabRef.current, wordProgressRef.current, currentPrompt?.id);
     setTimeout(() => { actionLock.current = false; }, 300);
   };
@@ -162,21 +160,18 @@ export default function CramDrill() {
 
   async function handleCramMastery(prompt: any, score: number) {
     const currentProg = wordProgressRef.current[prompt.id] || 0;
-    const newProg = score === 1.0 ? currentProg + 1 : 0; // Reset to 0 if wrong, +1 if right
+    const newProg = score === 1.0 ? currentProg + 1 : 0; 
     
     const updatedProgress = { ...wordProgressRef.current, [prompt.id]: newProg };
     setWordProgress(updatedProgress);
     wordProgressRef.current = updatedProgress;
 
-    // THE GOLDEN RULE: If it's a brand new word, force it into SRS for tomorrow. 
-    // Otherwise, leave it completely alone so it doesn't mess up long-term intervals.
     if (!prompt.next_review) {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const supabase = getSupabase();
       if (supabase) await supabase.from('vocab').update({ next_review: tomorrow.toISOString() }).eq('id', prompt.id);
       
-      // Update local ref so we don't keep firing this update if they see the word again in the same loop
       const idx = dbVocabRef.current.findIndex((w: any) => w.id === prompt.id);
       if (idx !== -1) dbVocabRef.current[idx].next_review = tomorrow.toISOString();
     }
@@ -186,7 +181,6 @@ export default function CramDrill() {
     if (!currentPrompt || actionLock.current || feedback) return;
     actionLock.current = true;
     const finalInput = userInput.trim();
-    // Strict grading for cramming to build fast recall (0.9 requires near perfection)
     const score = finalInput === "" ? 0.0 : evaluateAnswer(currentPrompt.expected, finalInput, 0.9);
     
     setFeedback({ score, expected: currentPrompt.expected, promptId: currentPrompt.promptId });
@@ -212,6 +206,12 @@ export default function CramDrill() {
     }
   };
 
+  // NEW: Triggers the explicit pause flag so the dashboard doesn't instantly send you back
+  const handlePause = () => {
+    sessionStorage.setItem('cram_explicitly_paused', 'true');
+    router.push('/');
+  };
+
   if (phase === "loading") {
     return (
       <main className="min-h-screen bg-[#fafafa] flex items-center justify-center pb-[calc(env(safe-area-inset-bottom)+80px)]">
@@ -220,7 +220,6 @@ export default function CramDrill() {
     );
   }
 
-  // Calculate overall progress for the progress bar
   const totalPointsNeeded = dbVocab.length * 3;
   const currentTotalPoints = Object.values(wordProgress).reduce((sum, val) => sum + val, 0);
   const progressPercent = totalPointsNeeded > 0 ? (currentTotalPoints / totalPointsNeeded) * 100 : 0;
@@ -231,9 +230,10 @@ export default function CramDrill() {
       <div className="max-w-md sm:max-w-xl md:max-w-2xl w-full bg-white/80 backdrop-blur-xl p-6 sm:p-10 rounded-[2.5rem] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border-2 border-rose-50 relative">
         
         <header className="mb-6 sm:mb-8 text-center relative">
-          <Link href="/" onClick={() => sessionStorage.removeItem('cram_drill_state')} className="absolute left-0 top-0 text-slate-300 hover:text-slate-500 transition-colors p-2 sm:p-0">
+          {/* UPDATED: Uses the explicit handlePause function */}
+          <button onClick={handlePause} className="absolute left-0 top-0 text-slate-300 hover:text-slate-500 transition-colors p-2 sm:p-0">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-7 sm:h-7"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </Link>
+          </button>
           
           <button 
             onClick={openDictionaryForCurrentWord} 
@@ -250,7 +250,6 @@ export default function CramDrill() {
             </span>
           </div>
 
-          {/* Session Progress Bar */}
           {phase === "drill" && (
             <div className="w-full bg-slate-100 h-2 sm:h-2.5 rounded-full mt-6 sm:mt-8 overflow-hidden shadow-inner">
               <div className="bg-rose-400 h-full transition-all duration-500 ease-out" style={{ width: `${progressPercent}%` }}></div>
@@ -263,7 +262,11 @@ export default function CramDrill() {
             <p className="text-5xl sm:text-6xl mb-4 animate-bounce">🔥</p>
             <p className="text-2xl sm:text-3xl font-black text-slate-700 mb-2 sm:mb-4">Session Complete!</p>
             <p className="text-slate-400 text-sm sm:text-base mb-8 font-bold">You successfully looped all words 3 times.</p>
-            <Link href="/" onClick={() => sessionStorage.removeItem('cram_drill_state')} className="bg-rose-500 hover:bg-rose-400 text-white font-black py-3 sm:py-3.5 px-6 sm:px-8 rounded-full transition-all active:scale-95 inline-flex items-center gap-2 sm:text-base shadow-[0_4px_14px_rgba(244,63,94,0.3)]">
+            
+            <Link href="/" onClick={() => {
+              sessionStorage.removeItem('cram_drill_state');
+              sessionStorage.removeItem('cram_explicitly_paused');
+            }} className="bg-rose-500 hover:bg-rose-400 text-white font-black py-3 sm:py-3.5 px-6 sm:px-8 rounded-full transition-all active:scale-95 inline-flex items-center gap-2 sm:text-base shadow-[0_4px_14px_rgba(244,63,94,0.3)]">
                Return to Dashboard
             </Link>
           </div>
@@ -277,8 +280,6 @@ export default function CramDrill() {
                 <span className="bg-slate-100 text-slate-500 text-[11px] sm:text-xs font-black px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-md border border-slate-200/60 uppercase tracking-wide">
                   {currentPrompt.type || "Vocab"}
                 </span>
-                
-                {/* Visual indicator of current word's progress (3 dots) */}
                 <div className="flex gap-1.5 ml-1 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
                    {[1, 2, 3].map(i => (
                      <div key={i} className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full transition-colors duration-300 ${i <= currentWordPoints ? 'bg-rose-400 shadow-sm' : 'bg-slate-200'}`}></div>

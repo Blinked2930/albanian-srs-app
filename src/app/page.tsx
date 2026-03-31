@@ -24,7 +24,12 @@ export default function Home() {
   const [kpis, setKpis] = useState<KPIState>({ totalWords: 0, globalMastery: 0, activeStreak: 0 });
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [grammarPerformance, setGrammarPerformance] = useState<GrammarMetric[]>([]);
-  const [recentLogs, setRecentLogs] = useState<any[]>([]); // Added to track recent failures
+  const [recentLogs, setRecentLogs] = useState<any[]>([]);
+
+  // --- Session Persistence States ---
+  const [activeCramSession, setActiveCramSession] = useState(false);
+  const [activeWordSession, setActiveWordSession] = useState(false);
+  const [activeSentenceSession, setActiveSentenceSession] = useState(false);
 
   // --- Cram Mode & UI State ---
   const [allVocab, setAllVocab] = useState<any[]>([]);
@@ -44,7 +49,62 @@ export default function Home() {
 
   const [toast, setToast] = useState<{ message: string, emoji: string, type: 'error' | 'info' } | null>(null);
 
-  useEffect(() => { fetchDashboardData(); }, []);
+  useEffect(() => { 
+    fetchDashboardData(); 
+    checkActiveSessions();
+  }, []);
+
+  // Automatically save the Cram Builder "cart" whenever words are selected
+  useEffect(() => {
+    sessionStorage.setItem('cram_builder_ids', JSON.stringify(cramSelectedIds));
+  }, [cramSelectedIds]);
+
+  const checkActiveSessions = () => {
+    // 1. Check Cram Drill
+    const cramState = sessionStorage.getItem('cram_drill_state');
+    if (cramState) {
+      try {
+        const parsed = JSON.parse(cramState);
+        if (parsed.phase === 'drill') {
+          // NEW CHECK: Did they explicitly pause, or just tab away?
+          const isExplicitlyPaused = sessionStorage.getItem('cram_explicitly_paused') === 'true';
+          
+          if (!isExplicitlyPaused) {
+            router.push('/drill/cram');
+            return; // Halt render, redirect immediately
+          }
+          
+          setActiveCramSession(true);
+        }
+      } catch (e) {}
+    }
+
+    // 2. Check Word Drill
+    const wordState = sessionStorage.getItem('word_drill_state');
+    if (wordState) {
+      try {
+        const parsed = JSON.parse(wordState);
+        if (parsed.phase === 'drill') setActiveWordSession(true);
+      } catch (e) {}
+    }
+
+    // 3. Check Sentence Drill
+    const sentenceState = sessionStorage.getItem('sentence_drill_state');
+    if (sentenceState) {
+      try {
+        const parsed = JSON.parse(sentenceState);
+        if (parsed.phase === 'drill') setActiveSentenceSession(true);
+      } catch (e) {}
+    }
+
+    // 4. Reload saved Cram Builder Cart
+    const savedBuilderIds = sessionStorage.getItem('cram_builder_ids');
+    if (savedBuilderIds) {
+      try {
+        setCramSelectedIds(JSON.parse(savedBuilderIds));
+      } catch (e) {}
+    }
+  };
 
   const showToast = (message: string, emoji: string = "⚠️", type: 'error' | 'info' = 'info') => {
     setToast({ message, emoji, type });
@@ -76,7 +136,6 @@ export default function Home() {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       
-      // Added vocab_id to the select to track which words were failed
       const { data: logData } = await supabase.from('review_logs').select('vocab_id, score, created_at').gte('created_at', sevenDaysAgo.toISOString()).order('created_at', { ascending: true });
 
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -87,8 +146,7 @@ export default function Home() {
       }
       
       if (logData) {
-        setRecentLogs(logData); // Save logs into state for the new Cram filter
-        
+        setRecentLogs(logData);
         logData.forEach(log => {
           const dayName = days[new Date(log.created_at).getDay()];
           if (aggregatedChart[dayName]) { aggregatedChart[dayName].count += 1; aggregatedChart[dayName].totalScore += log.score; }
@@ -142,7 +200,6 @@ export default function Home() {
       const threeDaysAgo = new Date(now.getTime() - (3 * 24 * 60 * 60 * 1000));
       const latestLogs: Record<string, any> = {};
       
-      // Find the absolute latest review log for each word
       recentLogs.forEach(log => {
         const logDate = new Date(log.created_at);
         if (!latestLogs[log.vocab_id] || logDate > new Date(latestLogs[log.vocab_id].created_at)) {
@@ -150,11 +207,10 @@ export default function Home() {
         }
       });
 
-      // Filter for words where the LATEST log was < 1.0 (failed/partial) AND occurred in the last 3 days
       filteredIds = Object.values(latestLogs)
         .filter(log => log.score < 1.0 && new Date(log.created_at) >= threeDaysAgo)
         .map(log => log.vocab_id)
-        .filter(id => allVocab.some(v => v.id === id)); // Make sure the word still exists in library
+        .filter(id => allVocab.some(v => v.id === id)); 
 
       if (filteredIds.length === 0) showToast("No recent failures found! Great job.", "🎉");
     }
@@ -207,12 +263,12 @@ export default function Home() {
     if (cramSelectedIds.length === 0) return;
     sessionStorage.setItem('cram_vocab_ids', JSON.stringify(cramSelectedIds));
     sessionStorage.removeItem('cram_drill_state'); 
+    sessionStorage.removeItem('cram_explicitly_paused'); // Ensure fresh start
     router.push('/drill/cram');
   };
 
   const closeCramModal = () => {
     setIsCramModalOpen(false); 
-    setCramSelectedIds([]); 
     setCramSearch(""); 
     setNewGroupName(""); 
     setIsNamingGroup(false);
@@ -267,16 +323,35 @@ export default function Home() {
               </div>
 
               <div className="md:col-span-5 grid grid-cols-2 gap-3 sm:gap-5">
-                <button onClick={() => setIsCramModalOpen(true)} className="col-span-2 bg-rose-500 hover:bg-rose-400 text-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(244,63,94,0.3)] border-2 border-rose-400/50">
-                  <span className="text-2xl sm:text-3xl">🔥</span>
-                  <span className="font-black text-base sm:text-xl tracking-wide">Cram Mode</span>
-                </button>
-                <Link href="/drill/word" className="bg-indigo-500 hover:bg-indigo-400 text-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-2 sm:gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(99,102,241,0.3)] border-2 border-indigo-400/50">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="sm:w-10 sm:h-10"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3z"/><path d="M3 4h8s-.5-2-1-2H5a2 2 0 0 0-2 2z"/></svg>
+                {activeCramSession ? (
+                  <div className="col-span-2 grid grid-cols-3 gap-3 sm:gap-5">
+                    {/* NEW: On click, clears the explicitly paused flag so it registers as active again */}
+                    <button onClick={() => { sessionStorage.removeItem('cram_explicitly_paused'); router.push('/drill/cram'); }} className="col-span-2 bg-rose-500 hover:bg-rose-400 text-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(244,63,94,0.3)] border-2 border-rose-400/50 relative overflow-hidden">
+                      <div className="absolute top-0 inset-x-0 bg-white/20 text-white py-0.5 text-center text-[10px] font-black tracking-widest uppercase">Active Session</div>
+                      <span className="text-2xl sm:text-3xl mt-2">🔥</span>
+                      <span className="font-black text-base sm:text-xl tracking-wide mt-2">Resume Cram</span>
+                    </button>
+                    {/* NEW: Flushes both the state and the flag completely */}
+                    <button onClick={() => { sessionStorage.removeItem('cram_drill_state'); sessionStorage.removeItem('cram_explicitly_paused'); setActiveCramSession(false); setIsCramModalOpen(true); }} className="col-span-1 bg-white/60 backdrop-blur-md hover:bg-white text-rose-500 p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-1 transition-all active:scale-95 shadow-sm border-2 border-rose-200 font-black">
+                      <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="mb-0.5 sm:mb-1"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                      <span className="text-[10px] sm:text-xs tracking-wider uppercase">Restart</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => setIsCramModalOpen(true)} className="col-span-2 bg-rose-500 hover:bg-rose-400 text-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(244,63,94,0.3)] border-2 border-rose-400/50">
+                    <span className="text-2xl sm:text-3xl">🔥</span>
+                    <span className="font-black text-base sm:text-xl tracking-wide">Cram Mode</span>
+                  </button>
+                )}
+
+                <Link href="/drill/word" className="relative overflow-hidden bg-indigo-500 hover:bg-indigo-400 text-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-2 sm:gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(99,102,241,0.3)] border-2 border-indigo-400/50">
+                  {activeWordSession && <div className="absolute top-0 inset-x-0 bg-white/20 py-0.5 text-center text-[9px] font-black tracking-widest uppercase">Resume</div>}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`sm:w-10 sm:h-10 ${activeWordSession ? 'mt-2' : ''}`}><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3z"/><path d="M3 4h8s-.5-2-1-2H5a2 2 0 0 0-2 2z"/></svg>
                   <span className="font-black text-sm sm:text-base">Word Drill</span>
                 </Link>
-                <Link href="/drill/sentence" className="bg-emerald-500 hover:bg-emerald-400 text-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-2 sm:gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(16,185,129,0.3)] border-2 border-emerald-400/50">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="sm:w-10 sm:h-10"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg>
+                <Link href="/drill/sentence" className="relative overflow-hidden bg-emerald-500 hover:bg-emerald-400 text-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-2 sm:gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(16,185,129,0.3)] border-2 border-emerald-400/50">
+                  {activeSentenceSession && <div className="absolute top-0 inset-x-0 bg-white/20 py-0.5 text-center text-[9px] font-black tracking-widest uppercase">Resume</div>}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`sm:w-10 sm:h-10 ${activeSentenceSession ? 'mt-2' : ''}`}><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg>
                   <span className="font-black text-sm sm:text-base">Sentences</span>
                 </Link>
               </div>
@@ -357,7 +432,7 @@ export default function Home() {
                   <button onClick={() => setCramSelectedIds([])} className="whitespace-nowrap bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Clear All</button>
                </div>
 
-               {/* Custom Groups Row - BEAUTIFUL VISUALS */}
+               {/* Custom Groups Row */}
                {cramGroups.length > 0 && (
                  <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
                     {cramGroups.map(group => (
@@ -406,7 +481,6 @@ export default function Home() {
                 <span className="block text-xs uppercase tracking-widest font-bold text-slate-400">Selected</span>
               </div>
               <div className="flex gap-2 sm:gap-3">
-                {/* CONDITIONAL RENDER: Save button only appears if words are selected */}
                 {cramSelectedIds.length > 0 && (
                   <button 
                     onClick={() => setIsNamingGroup(true)}
@@ -429,7 +503,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* CUSTOM BEAUTIFUL NAMING MODAL */}
       {isNamingGroup && (
         <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsNamingGroup(false)}>
           <div className="bg-white rounded-[2rem] p-6 sm:p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
@@ -460,7 +533,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* CUSTOM BEAUTIFUL DELETE CONFIRMATION MODAL */}
       {groupToDelete && (
         <div className="fixed inset-0 z-[260] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setGroupToDelete(null)}>
           <div className="bg-white rounded-[2rem] p-6 sm:p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
