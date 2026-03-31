@@ -24,6 +24,7 @@ export default function Home() {
   const [kpis, setKpis] = useState<KPIState>({ totalWords: 0, globalMastery: 0, activeStreak: 0 });
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [grammarPerformance, setGrammarPerformance] = useState<GrammarMetric[]>([]);
+  const [recentLogs, setRecentLogs] = useState<any[]>([]); // Added to track recent failures
 
   // --- Cram Mode & UI State ---
   const [allVocab, setAllVocab] = useState<any[]>([]);
@@ -74,7 +75,9 @@ export default function Home() {
 
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const { data: logData } = await supabase.from('review_logs').select('score, created_at').gte('created_at', sevenDaysAgo.toISOString()).order('created_at', { ascending: true });
+      
+      // Added vocab_id to the select to track which words were failed
+      const { data: logData } = await supabase.from('review_logs').select('vocab_id, score, created_at').gte('created_at', sevenDaysAgo.toISOString()).order('created_at', { ascending: true });
 
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const aggregatedChart: Record<string, { count: number; totalScore: number }> = {};
@@ -82,12 +85,16 @@ export default function Home() {
         const d = new Date(); d.setDate(d.getDate() - i);
         aggregatedChart[days[d.getDay()]] = { count: 0, totalScore: 0 };
       }
+      
       if (logData) {
+        setRecentLogs(logData); // Save logs into state for the new Cram filter
+        
         logData.forEach(log => {
           const dayName = days[new Date(log.created_at).getDay()];
           if (aggregatedChart[dayName]) { aggregatedChart[dayName].count += 1; aggregatedChart[dayName].totalScore += log.score; }
         });
       }
+      
       const finalChartData: ChartData[] = Object.keys(aggregatedChart).map(key => ({
         name: key, wordsReviewed: aggregatedChart[key].count,
         avgScore: aggregatedChart[key].count > 0 ? Number((aggregatedChart[key].totalScore / aggregatedChart[key].count).toFixed(2)) : 0
@@ -107,7 +114,7 @@ export default function Home() {
     setKpis({ totalWords, globalMastery: Number(globalMastery.toFixed(2)), activeStreak: maxStreak });
   }
 
-  const applyCramPreset = (type: 'today' | 'week' | 'struggling') => {
+  const applyCramPreset = (type: 'today' | 'week' | 'struggling' | 'failed') => {
     const now = new Date();
     let filteredIds: string[] = [];
 
@@ -115,13 +122,35 @@ export default function Home() {
       const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
       filteredIds = allVocab.filter(v => v.created_at && new Date(v.created_at) >= yesterday).map(v => v.id);
       if (filteredIds.length === 0) showToast("No new words added in the last 24 hours.", "⏱️");
+      
     } else if (type === 'week') {
       const lastWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
       filteredIds = allVocab.filter(v => v.created_at && new Date(v.created_at) >= lastWeek).map(v => v.id);
       if (filteredIds.length === 0) showToast("No new words added in the last 7 days.", "📅");
+      
     } else if (type === 'struggling') {
       filteredIds = allVocab.filter(v => Number(v.mastery_score || 0) < 0.5).map(v => v.id);
       if (filteredIds.length === 0) showToast("No weak words found! You're doing great.", "💪");
+      
+    } else if (type === 'failed') {
+      const threeDaysAgo = new Date(now.getTime() - (3 * 24 * 60 * 60 * 1000));
+      const latestLogs: Record<string, any> = {};
+      
+      // Find the absolute latest review log for each word
+      recentLogs.forEach(log => {
+        const logDate = new Date(log.created_at);
+        if (!latestLogs[log.vocab_id] || logDate > new Date(latestLogs[log.vocab_id].created_at)) {
+          latestLogs[log.vocab_id] = log;
+        }
+      });
+
+      // Filter for words where the LATEST log was < 1.0 (failed/partial) AND occurred in the last 3 days
+      filteredIds = Object.values(latestLogs)
+        .filter(log => log.score < 1.0 && new Date(log.created_at) >= threeDaysAgo)
+        .map(log => log.vocab_id)
+        .filter(id => allVocab.some(v => v.id === id)); // Make sure the word still exists in library
+
+      if (filteredIds.length === 0) showToast("No recent failures found! Great job.", "🎉");
     }
 
     if (filteredIds.length > 0) {
@@ -317,6 +346,7 @@ export default function Home() {
                   <button onClick={() => applyCramPreset('today')} className="whitespace-nowrap bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">New Today</button>
                   <button onClick={() => applyCramPreset('week')} className="whitespace-nowrap bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Recent Adds</button>
                   <button onClick={() => applyCramPreset('struggling')} className="whitespace-nowrap bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Weak Words</button>
+                  <button onClick={() => applyCramPreset('failed')} className="whitespace-nowrap bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Recent Fails</button>
                   <button onClick={() => setCramSelectedIds([])} className="whitespace-nowrap bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition-all">Clear All</button>
                </div>
 
