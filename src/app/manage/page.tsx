@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import DictionaryModal from "@/components/DictionaryModal";
@@ -191,6 +191,42 @@ export default function ManageVocab() {
     confidence: "New",
     usefulness: ""
   });
+
+  // --- INVISIBLE SEARCH: Checks library as you type ---
+  const duplicateMatch = useMemo(() => {
+    const q = formData.albanian.trim().toLowerCase();
+    if (q.length < 2) return null;
+
+    // 1. Check Exact Match
+    const exactVocab = vocabList.find(v => v.albanian.toLowerCase() === q);
+    if (exactVocab) return `Already in library: ${exactVocab.albanian} (${exactVocab.english})`;
+
+    // 2. Deep check verbs
+    for (const c of allConjugations) {
+      if ([c.une, c.ti, c.ai_ajo, c.ne, c.ju, c.ata_ato].some(v => v && v.toLowerCase() === q)) {
+        const parent = vocabList.find(v => v.id === c.vocab_id);
+        return parent ? `Matches conjugation of ${parent.albanian}` : `Matches a verb conjugation`;
+      }
+    }
+    
+    // 3. Deep check nouns
+    for (const n of allNouns) {
+      if ([n.indef_sg, n.def_sg, n.indef_pl, n.def_pl].some(v => v && v.toLowerCase() === q)) {
+        const parent = vocabList.find(v => v.id === n.vocab_id);
+        return parent ? `Matches declension of ${parent.albanian}` : `Matches a noun declension`;
+      }
+    }
+    
+    // 4. Deep check adjectives
+    for (const a of allAdjectives) {
+      if ([a.masc_sg, a.fem_sg, a.masc_pl, a.fem_pl].some(v => v && v.toLowerCase() === q)) {
+        const parent = vocabList.find(v => v.id === a.vocab_id);
+        return parent ? `Matches adjective form of ${parent.albanian}` : `Matches an adjective form`;
+      }
+    }
+    
+    return null;
+  }, [formData.albanian, vocabList, allConjugations, allNouns, allAdjectives]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -409,6 +445,13 @@ export default function ManageVocab() {
     return <span className="text-indigo-500 font-black ml-1">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>;
   };
 
+  // --- SEARCH TO ADD ROUTER ---
+  const handleSearchToAdd = () => {
+    setFormData(prev => ({ ...prev, albanian: searchQuery }));
+    setSearchQuery("");
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   // --- Search Algorithm with Contextual Feedback ---
   const processedVocab = vocabList.reduce((acc, item) => {
     const q = searchQuery.trim().toLowerCase();
@@ -529,16 +572,23 @@ export default function ManageVocab() {
             Add Single Word
           </h2>
           <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-end">
-            <div className="flex flex-col gap-1.5 lg:col-span-1">
+            
+            <div className="flex flex-col gap-1.5 lg:col-span-1 relative">
               <label className="text-xs text-slate-400 uppercase font-black tracking-widest">Albanian</label>
               <input required type="text" value={formData.albanian} onChange={e => setFormData({ ...formData, albanian: e.target.value })} className="bg-slate-50 border-2 border-slate-200 rounded-[1.25rem] px-4 py-3 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner" placeholder="e.g. Bukur" />
+              {/* THE INVISIBLE SEARCH WARNING */}
+              {duplicateMatch && (
+                <div className="absolute top-[calc(100%+4px)] left-2 text-[10px] font-black text-amber-500 z-10 bg-amber-50/90 px-2 py-0.5 rounded-md backdrop-blur-md border border-amber-100 whitespace-nowrap shadow-sm pointer-events-none">
+                  ⚠️ {duplicateMatch}
+                </div>
+              )}
             </div>
+
             <div className="flex flex-col gap-1.5 lg:col-span-1">
               <label className="text-xs text-slate-400 uppercase font-black tracking-widest">English</label>
               <input required type="text" value={formData.english} onChange={e => setFormData({ ...formData, english: e.target.value })} className="bg-slate-50 border-2 border-slate-200 rounded-[1.25rem] px-4 py-3 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner" placeholder="e.g. Beautiful" />
             </div>
 
-            {/* CUSTOM FROSTED GLASS DROPDOWN */}
             <div className="flex flex-col gap-1.5 relative">
               <label className="text-xs text-slate-400 uppercase font-black tracking-widest">Type</label>
               <div className="relative">
@@ -588,8 +638,16 @@ export default function ManageVocab() {
               <div className="w-8 h-8 border-4 border-slate-200 border-t-indigo-500 rounded-full animate-spin" />
             </div>
           ) : !loading && processedVocab.length === 0 ? (
-            <div className="text-center py-12 px-4 text-slate-500 font-bold bg-white/60 rounded-[2rem] border-2 border-white">
-              {searchQuery ? "No words match your search." : "No vocabulary found. Add your first word or import a CSV!"}
+            <div className="text-center py-10 px-4 text-slate-500 font-bold bg-white/60 rounded-[2rem] border-2 border-white flex flex-col items-center justify-center gap-3 shadow-sm">
+              {searchQuery ? (
+                <>
+                  <p>No words match "{searchQuery}".</p>
+                  <button onClick={handleSearchToAdd} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 px-5 py-2.5 rounded-xl text-sm transition-all active:scale-95 flex items-center gap-2 font-black mt-2">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg> 
+                     Add "{searchQuery}" to Library
+                  </button>
+                </>
+              ) : "No vocabulary found. Add your first word or import a CSV!"}
             </div>
           ) : (
             processedVocab.map(item => (
@@ -674,7 +732,15 @@ export default function ManageVocab() {
                 {!loading && processedVocab.length === 0 && (
                   <tr>
                     <td colSpan={7} className="p-16 text-center text-slate-500 font-bold text-lg bg-white/50">
-                      {searchQuery ? "No words match your search." : "No vocabulary found. Add your first word!"}
+                      {searchQuery ? (
+                        <div className="flex flex-col items-center justify-center gap-4">
+                          <p>No words match "{searchQuery}".</p>
+                          <button onClick={handleSearchToAdd} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 px-6 py-3 rounded-xl text-sm transition-all active:scale-95 flex items-center gap-2 font-black">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg> 
+                             Add "{searchQuery}" to Library
+                          </button>
+                        </div>
+                      ) : "No vocabulary found. Add your first word!"}
                     </td>
                   </tr>
                 )}
