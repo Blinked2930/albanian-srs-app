@@ -232,7 +232,14 @@ export default function Home() {
     }
 
     if (filteredIds.length > 0) {
-      setCramSelectedIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+      setCramSelectedIds(prev => {
+        const hasAllSelected = filteredIds.every(id => prev.includes(id));
+        if (hasAllSelected) {
+          return prev.filter(id => !filteredIds.includes(id));
+        } else {
+          return Array.from(new Set([...prev, ...filteredIds]));
+        }
+      });
     }
   };
 
@@ -273,8 +280,8 @@ export default function Home() {
 
   const loadGroup = (ids: string[]) => {
     setCramSelectedIds(prev => {
-      const hasAnySelected = ids.some(id => prev.includes(id));
-      if (hasAnySelected) {
+      const hasAllSelected = ids.every(id => prev.includes(id));
+      if (hasAllSelected) {
         return prev.filter(id => !ids.includes(id));
       } else {
         return Array.from(new Set([...prev, ...ids]));
