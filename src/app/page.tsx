@@ -173,30 +173,46 @@ export default function Home() {
   }
 
   const applyCramPreset = (type: 'today' | 'yesterday' | 'week' | 'struggling' | 'failed') => {
-    const now = new Date();
     let filteredIds: string[] = [];
 
+    // Setup Calendar Boundaries
+    const now = new Date();
+    
+    // Start of TODAY (Midnight)
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+
+    // Start of YESTERDAY (Midnight yesterday)
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+
+    // Start of 7 DAYS AGO
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(startOfWeek.getDate() - 7);
+
     if (type === 'today') {
-      const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-      filteredIds = allVocab.filter(v => v.created_at && new Date(v.created_at) >= yesterday).map(v => v.id);
-      if (filteredIds.length === 0) showToast("No new words added in the last 24 hours.", "⏱️");
+      filteredIds = allVocab.filter(v => v.created_at && new Date(v.created_at) >= startOfToday).map(v => v.id);
+      if (filteredIds.length === 0) showToast("No new words added today yet.", "⏱️");
       
     } else if (type === 'yesterday') {
-      const oneDayAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-      const twoDaysAgo = new Date(now.getTime() - (48 * 60 * 60 * 1000));
-      filteredIds = allVocab.filter(v => v.created_at && new Date(v.created_at) >= twoDaysAgo && new Date(v.created_at) < oneDayAgo).map(v => v.id);
+      // Greater than or equal to startOfYesterday, AND strictly less than startOfToday
+      filteredIds = allVocab.filter(v => {
+        if (!v.created_at) return false;
+        const createdDate = new Date(v.created_at);
+        return createdDate >= startOfYesterday && createdDate < startOfToday;
+      }).map(v => v.id);
       if (filteredIds.length === 0) showToast("No words added yesterday.", "⏳");
 
     } else if (type === 'week') {
-      const lastWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
-      filteredIds = allVocab.filter(v => v.created_at && new Date(v.created_at) >= lastWeek).map(v => v.id);
-      if (filteredIds.length === 0) showToast("No new words added in the last 7 days.", "📅");
+      filteredIds = allVocab.filter(v => v.created_at && new Date(v.created_at) >= startOfWeek).map(v => v.id);
+      if (filteredIds.length === 0) showToast("No new words added this week.", "📅");
       
     } else if (type === 'struggling') {
       filteredIds = allVocab.filter(v => Number(v.mastery_score || 0) < 0.5).map(v => v.id);
       if (filteredIds.length === 0) showToast("No weak words found! You're doing great.", "💪");
       
     } else if (type === 'failed') {
+      // 3 rolling days ago for fails makes more sense than strict midnights, keeps it fluid
       const threeDaysAgo = new Date(now.getTime() - (3 * 24 * 60 * 60 * 1000));
       const latestLogs: Record<string, any> = {};
       
