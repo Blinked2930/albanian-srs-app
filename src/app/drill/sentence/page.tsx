@@ -27,7 +27,7 @@ export default function SentenceDrill() {
   const [modalWord, setModalWord] = useState<any | null>(null);
   const [mnemonic, setMnemonic] = useState<string | null>(null);
   const [isGeneratingMnemonic, setIsGeneratingMnemonic] = useState(false);
-  
+
   // NEW STATE: For the Sentence Explanation
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isGeneratingExplanation, setIsGeneratingExplanation] = useState(false);
@@ -57,6 +57,16 @@ export default function SentenceDrill() {
     const supabase = getSupabase();
     if (!supabase) { setLoadError("Supabase is not configured."); setPhase("setup"); return; }
     setLoadError(null);
+
+    // Purge old sentences (older than 14 days) on page load
+    try {
+      const twoWeeksAgo = new Date();
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+      const { error: purgeError } = await supabase.from('sentences').delete().lt('created_at', twoWeeksAgo.toISOString());
+      if (purgeError) console.error("Sentence Purge Failed:", purgeError);
+    } catch (e) {
+      console.error("Purge Exception:", e);
+    }
 
     const { data: metricsData } = await supabase.from("grammar_metrics").select("*");
     if (metricsData) { grammarMetricsRef.current = metricsData; setGrammarMetrics(metricsData); }
@@ -99,7 +109,7 @@ export default function SentenceDrill() {
     try {
       const res = await fetch('/api/generate-sentences', { method: 'POST' });
       const data = await res.json();
-      if (res.ok) { alert(data.message || "Sentences generated successfully!"); await loadData(); } 
+      if (res.ok) { alert(data.message || "Sentences generated successfully!"); await loadData(); }
       else { alert("Error: " + (data.error || "Failed to generate sentences. Check console.")); }
     } catch (err) {
       console.error(err); alert("An error occurred while calling the sentence generator.");
@@ -146,9 +156,9 @@ export default function SentenceDrill() {
   const generatePrompt = () => {
     if (actionLock.current) return;
     actionLock.current = true;
-    setFeedback(null); 
-    setUserInput(""); 
-    setMnemonic(null); 
+    setFeedback(null);
+    setUserInput("");
+    setMnemonic(null);
     setExplanation(null); // Clear explanation state on next
     setShowTarget(false);
     pickAndSetPrompt(dbVocabRef.current);
@@ -166,7 +176,7 @@ export default function SentenceDrill() {
       const data = await res.json();
       if (res.ok) setMnemonic(data.mnemonic);
       else alert("Failed to generate mnemonic.");
-    } catch (err) { console.error(err); } 
+    } catch (err) { console.error(err); }
     finally { setIsGeneratingMnemonic(false); }
   };
 
@@ -182,18 +192,18 @@ export default function SentenceDrill() {
         body: JSON.stringify({ albanian_sentence: fullAlbanianSentence, english_translation: currentPrompt.english_translation })
       });
       const data = await res.json();
-      
+
       if (res.ok) {
         setExplanation(data.explanation);
       } else {
         // This will expose the *exact* error to you on the screen
         alert(`API Error: ${data.error || "Failed to generate explanation."}`);
       }
-    } catch (err: any) { 
-      console.error(err); 
+    } catch (err: any) {
+      console.error(err);
       alert(`Network Error: ${err.message}`);
-    } finally { 
-      setIsGeneratingExplanation(false); 
+    } finally {
+      setIsGeneratingExplanation(false);
     }
   };
 
@@ -320,10 +330,10 @@ export default function SentenceDrill() {
     return (
       <main className="min-h-[100dvh] bg-[#fafafa] flex flex-col items-center p-6 pt-12 sm:pt-20 pb-[calc(env(safe-area-inset-bottom)+5rem)] select-none">
         <div className="max-w-md sm:max-w-3xl w-full">
-          
+
           <header className="mb-8 text-center sm:text-left">
             <Link href="/" className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-600 font-bold text-sm mb-4 transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
               Home
             </Link>
             <h1 className="text-3xl sm:text-5xl font-black text-slate-700 tracking-tight mb-2">Context Drill</h1>
@@ -345,9 +355,9 @@ export default function SentenceDrill() {
 
               <button onClick={handleGenerateSentences} disabled={isGenerating} className="w-full bg-slate-50 hover:bg-slate-100 border-2 border-slate-200 text-slate-600 font-bold py-4 sm:py-5 rounded-[2rem] transition-colors flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 text-sm sm:text-base shadow-sm">
                 {isGenerating ? (
-                   <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin"></div>
+                  <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin"></div>
                 ) : (
-                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" className="text-emerald-500 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" className="text-emerald-500 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" /></svg>
                 )}
                 {isGenerating ? "Generating..." : "Generate More"}
               </button>
@@ -361,21 +371,21 @@ export default function SentenceDrill() {
   return (
     <main className="min-h-[100dvh] bg-[#fafafa] flex flex-col items-center justify-start sm:justify-center p-4 pt-8 sm:p-8 pb-[calc(env(safe-area-inset-bottom)+5rem)] select-none">
       <div className="max-w-md sm:max-w-xl md:max-w-2xl w-full bg-white/80 backdrop-blur-xl p-6 sm:p-10 rounded-[2.5rem] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border-2 border-white relative">
-        
+
         <header className="mb-6 sm:mb-8 text-center relative">
           <button onClick={() => { setPhase("setup"); sessionStorage.removeItem('sentence_drill_state'); }} className="absolute left-0 top-0 text-slate-300 hover:text-slate-500 transition-colors p-2 sm:p-0">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-7 sm:h-7"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-7 sm:h-7"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
           </button>
-          
-          <button 
-            onClick={openDictionaryForCurrentWord} 
+
+          <button
+            onClick={openDictionaryForCurrentWord}
             disabled={!feedback}
-            className={`absolute right-0 top-0 transition-colors p-2 sm:p-2.5 rounded-full ${!feedback ? 'text-slate-300 bg-slate-50 opacity-50 cursor-not-allowed' : 'text-emerald-500 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-600 shadow-sm'}`} 
+            className={`absolute right-0 top-0 transition-colors p-2 sm:p-2.5 rounded-full ${!feedback ? 'text-slate-300 bg-slate-50 opacity-50 cursor-not-allowed' : 'text-emerald-500 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-600 shadow-sm'}`}
             title="Grammar Details"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="sm:w-5 sm:h-5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="sm:w-5 sm:h-5"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
           </button>
-          
+
           <p className="text-xs uppercase tracking-widest text-slate-400 font-bold pt-2 sm:pt-1">Fill the Blank</p>
         </header>
 
@@ -385,7 +395,7 @@ export default function SentenceDrill() {
             <p className="text-2xl sm:text-3xl font-black text-slate-700 mb-2 sm:mb-4">All caught up!</p>
             <p className="text-slate-400 text-sm sm:text-base mb-8 font-bold">You crushed your sentences for now.</p>
             <button onClick={() => { setPhase("setup"); sessionStorage.removeItem('sentence_drill_state'); }} className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-black py-3 sm:py-3.5 px-6 sm:px-8 rounded-full transition-colors inline-flex items-center gap-2 sm:text-base">
-               Back to Hub
+              Back to Hub
             </button>
           </div>
         )}
@@ -432,14 +442,13 @@ export default function SentenceDrill() {
 
               {feedback && feedback.promptId === currentPrompt?.promptId && (
                 <div className="mt-4 sm:mt-5 flex flex-col gap-3 sm:gap-4 animate-in fade-in slide-in-from-bottom-2">
-                  
-                  <div className={`p-4 sm:p-5 rounded-[1.5rem] text-center font-bold border-2 ${
-                    feedback.score === 1.0 ? "bg-emerald-50 text-emerald-600 border-emerald-200" :
-                    feedback.score > 0 ? "bg-amber-50 text-amber-600 border-amber-200" :
-                    "bg-rose-50 text-rose-600 border-rose-200"
+
+                  <div className={`p-4 sm:p-5 rounded-[1.5rem] text-center font-bold border-2 ${feedback.score === 1.0 ? "bg-emerald-50 text-emerald-600 border-emerald-200" :
+                      feedback.score > 0 ? "bg-amber-50 text-amber-600 border-amber-200" :
+                        "bg-rose-50 text-rose-600 border-rose-200"
                     }`}>
                     <p className="text-lg sm:text-xl mb-1 sm:mb-1.5">{feedback.score === 1.0 ? "Perfect! ✨" : feedback.score > 0 ? "Almost!" : "Incorrect."}</p>
-                    
+
                     {feedback.score < 1.0 && (
                       <p className="text-sm sm:text-base text-slate-500">
                         Missing Word: <span className="font-black text-slate-800 text-base sm:text-lg">{feedback.expected}</span>
@@ -455,30 +464,30 @@ export default function SentenceDrill() {
                   <div className="flex gap-2 sm:gap-3 w-full">
                     {!mnemonic && !isGeneratingMnemonic && (
                       <button onClick={handleGenerateMnemonic} type="button" className="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 font-bold py-3 sm:py-3.5 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform text-sm sm:text-base">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-5 sm:h-5"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-5 sm:h-5"><path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" /></svg>
                         Hint
                       </button>
                     )}
                     {isGeneratingMnemonic && (
-                       <div className="flex-1 bg-slate-50 text-emerald-400 font-bold py-3 sm:py-3.5 rounded-xl flex items-center justify-center gap-2 text-sm sm:text-base">
-                          <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-emerald-200 border-t-emerald-500 rounded-full animate-spin"></div>
-                       </div>
+                      <div className="flex-1 bg-slate-50 text-emerald-400 font-bold py-3 sm:py-3.5 rounded-xl flex items-center justify-center gap-2 text-sm sm:text-base">
+                        <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-emerald-200 border-t-emerald-500 rounded-full animate-spin"></div>
+                      </div>
                     )}
 
                     {!explanation && !isGeneratingExplanation && (
                       <button onClick={handleExplainSentence} type="button" className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-500 font-bold py-3 sm:py-3.5 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform text-sm sm:text-base">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-5 sm:h-5"><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-5 sm:h-5"><line x1="22" y1="12" x2="2" y2="12" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /><line x1="6" y1="16" x2="6.01" y2="16" /><line x1="10" y1="16" x2="10.01" y2="16" /></svg>
                         Explain
                       </button>
                     )}
                     {isGeneratingExplanation && (
-                       <div className="flex-1 bg-slate-50 text-indigo-400 font-bold py-3 sm:py-3.5 rounded-xl flex items-center justify-center gap-2 text-sm sm:text-base">
-                          <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin"></div>
-                       </div>
+                      <div className="flex-1 bg-slate-50 text-indigo-400 font-bold py-3 sm:py-3.5 rounded-xl flex items-center justify-center gap-2 text-sm sm:text-base">
+                        <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin"></div>
+                      </div>
                     )}
-                    
+
                     <button onClick={generatePrompt} type="button" className="flex-[2] bg-slate-800 hover:bg-slate-700 text-white font-black py-3 sm:py-3.5 rounded-xl active:scale-95 transition-transform shadow-md text-sm sm:text-base flex items-center justify-center gap-2">
-                      Next <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-5 sm:h-5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                      Next <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-5 sm:h-5"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
                     </button>
                   </div>
 

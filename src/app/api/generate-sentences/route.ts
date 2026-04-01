@@ -13,12 +13,6 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export async function POST(request: Request) {
   try {
-    const twoWeeksAgo = new Date();
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-
-    const { error: purgeError } = await supabase.from('sentences').delete().lt('created_at', twoWeeksAgo.toISOString());
-    if (purgeError) console.error("Impeachment Clause Failed:", purgeError);
-
     const { data: allVocab, error: fetchError } = await supabase.from('vocab').select('id, albanian, english, type, mastery_score, sentences(id)');
     if (fetchError) throw fetchError;
 
@@ -74,7 +68,7 @@ export async function POST(request: Request) {
       .single();
 
     if (promptError) console.warn("Supabase Error in Sentence API:", promptError);
-    
+
     // Log it to terminal
     console.log("Fetched Sentence Prompt from DB:", promptData?.value);
 
@@ -121,7 +115,7 @@ export async function POST(request: Request) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
     const result = await model.generateContent(finalPrompt);
-    
+
     const cleanJsonString = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
     const generatedSentences = JSON.parse(cleanJsonString);
 
