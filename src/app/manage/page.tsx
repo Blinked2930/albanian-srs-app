@@ -112,6 +112,11 @@ export default function ManageVocab() {
   // Word Modal State
   const [selectedWord, setSelectedWord] = useState<VocabType | null>(null);
 
+  // Loading and Confirmation state
+  const [isAdding, setIsAdding] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   useEffect(() => {
     fetchVocab();
     fetchAllPrompts();
@@ -231,7 +236,9 @@ export default function ManageVocab() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.albanian || !formData.english) return;
+    if (!formData.albanian || !formData.english || isAdding) return;
+
+    setIsAdding(true);
 
     const newVocab = {
       albanian: formData.albanian.trim(),
@@ -262,23 +269,31 @@ export default function ManageVocab() {
     }
 
     setFormData({ albanian: "", english: "", type: "Unknown", confidence: "New", usefulness: "" });
+    setIsAdding(false);
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteClick = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm("Are you sure you want to delete this word? This action cannot be undone.")) return;
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmId) return;
+    setIsDeleting(true);
 
     const supabase = getSupabase();
     if (!supabase) return;
 
-    const { error } = await supabase.from('vocab').delete().eq('id', id);
+    const { error } = await supabase.from('vocab').delete().eq('id', deleteConfirmId);
 
     if (error) {
       console.error("Failed to delete word:", error);
       alert("Failed to delete word.");
     } else {
-      setVocabList(prev => prev.filter(v => v.id !== id));
+      setVocabList(prev => prev.filter(v => v.id !== deleteConfirmId));
     }
+    setIsDeleting(false);
+    setDeleteConfirmId(null);
   };
 
   const parseCSVRow = (str: string) => {
@@ -610,8 +625,13 @@ export default function ManageVocab() {
               <label className="text-xs text-slate-400 uppercase font-black tracking-widest">Priority</label>
               <input type="number" min="1" max="10" value={formData.usefulness} onChange={e => setFormData({ ...formData, usefulness: e.target.value })} className="bg-slate-50 border-2 border-slate-200 rounded-[1.25rem] px-4 py-3 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner" placeholder="1-10" />
             </div>
-            <button type="submit" className="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-black py-3 sm:py-3.5 rounded-[1.25rem] transition-colors shadow-md active:scale-95 text-lg">
-              Add to Queue
+            <button type="submit" disabled={isAdding} className="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-black py-3 sm:py-3.5 rounded-[1.25rem] transition-colors shadow-md active:scale-95 text-lg disabled:opacity-50 flex items-center justify-center gap-2">
+              {isAdding ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                  Adding...
+                </>
+              ) : "Add to Queue"}
             </button>
           </form>
         </section>
@@ -663,7 +683,7 @@ export default function ManageVocab() {
                     )}
                     <div className="text-base sm:text-lg font-bold text-slate-500 mt-1">{item.english}</div>
                   </div>
-                  <button onClick={(e) => handleDelete(item.id, e)} className="text-slate-300 hover:text-rose-500 transition-colors p-2.5 rounded-xl hover:bg-rose-50 bg-white" title="Delete word">
+                  <button onClick={(e) => handleDeleteClick(item.id, e)} className="text-slate-300 hover:text-rose-500 transition-colors p-2.5 rounded-xl hover:bg-rose-50 bg-white" title="Delete word">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
                   </button>
                 </div>
@@ -782,7 +802,7 @@ export default function ManageVocab() {
                       </div>
                     </td>
                     <td className="px-6 py-5 text-right">
-                      <button onClick={(e) => handleDelete(item.id, e)} className="text-slate-300 hover:text-rose-500 transition-colors p-2.5 rounded-xl hover:bg-rose-50 opacity-0 group-hover:opacity-100 focus:opacity-100 bg-white" title="Delete word">
+                      <button onClick={(e) => handleDeleteClick(item.id, e)} className="text-slate-300 hover:text-rose-500 transition-colors p-2.5 rounded-xl hover:bg-rose-50 opacity-0 group-hover:opacity-100 focus:opacity-100 bg-white" title="Delete word">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
                       </button>
                     </td>
@@ -879,6 +899,35 @@ export default function ManageVocab() {
                 </>
               )}
             </footer>
+          </div>
+        </div>
+      )}
+
+      {/* ADDING TOAST */}
+      {isAdding && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[200] bg-zinc-900/90 backdrop-blur-md text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-in fade-in slide-in-from-bottom-8 duration-300">
+          <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+          <span className="font-bold tracking-wide">Adding "{formData.albanian}" to database...</span>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => !isDeleting && setDeleteConfirmId(null)}>
+          <div className="bg-white/90 backdrop-blur-xl border-2 border-white rounded-[2rem] p-6 sm:p-8 max-w-sm w-full shadow-[0_20px_60px_rgba(0,0,0,0.15)] flex flex-col items-center text-center animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="w-16 h-16 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center mb-6 shadow-inner">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
+            </div>
+            <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Delete Word?</h3>
+            <p className="text-slate-500 font-bold mb-8">This action cannot be undone. It will be permanently removed from your library.</p>
+            <div className="flex w-full gap-3">
+              <button onClick={() => setDeleteConfirmId(null)} disabled={isDeleting} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black py-3.5 rounded-xl transition-colors active:scale-95 disabled:opacity-50">
+                Cancel
+              </button>
+              <button onClick={confirmDelete} disabled={isDeleting} className="flex-1 bg-rose-500 hover:bg-rose-400 text-white font-black py-3.5 rounded-xl transition-all shadow-[0_4px_14px_rgba(244,63,94,0.4)] active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50">
+                {isDeleting ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : "Delete"}
+              </button>
+            </div>
           </div>
         </div>
       )}
