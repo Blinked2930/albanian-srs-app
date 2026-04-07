@@ -5,8 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { initDemoDB, mockSupabase } from "@/lib/mockSupabaseClient";
+
+const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
 const getSupabase = () => {
+  if (isDemoMode) {
+    initDemoDB();
+    return mockSupabase;
+  }
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
   if (!url || !key) return null;
@@ -55,17 +62,14 @@ export default function Home() {
   useEffect(() => { 
     fetchDashboardData(); 
     checkActiveSessions();
-    // Reset navigation state on mount in case they navigate back via browser back button
     setIsNavigatingToCram(false);
   }, []);
 
-  // Automatically save the Cram Builder "cart" whenever words are selected
   useEffect(() => {
     sessionStorage.setItem('cram_builder_ids', JSON.stringify(cramSelectedIds));
   }, [cramSelectedIds]);
 
   const checkActiveSessions = () => {
-    // 1. Check Cram Drill
     const cramState = sessionStorage.getItem('cram_drill_state');
     if (cramState) {
       try {
@@ -83,7 +87,6 @@ export default function Home() {
       } catch (e) {}
     }
 
-    // 2. Check Word Drill
     const wordState = sessionStorage.getItem('word_drill_state');
     if (wordState) {
       try {
@@ -92,7 +95,6 @@ export default function Home() {
       } catch (e) {}
     }
 
-    // 3. Check Sentence Drill
     const sentenceState = sessionStorage.getItem('sentence_drill_state');
     if (sentenceState) {
       try {
@@ -101,7 +103,6 @@ export default function Home() {
       } catch (e) {}
     }
 
-    // 4. Reload saved Cram Builder Cart
     const savedBuilderIds = sessionStorage.getItem('cram_builder_ids');
     if (savedBuilderIds) {
       try {
@@ -128,7 +129,7 @@ export default function Home() {
       if (vocabData) processVocab(vocabData);
 
       const { data: groupData } = await supabase.from('cram_groups').select('*').order('created_at', { ascending: false });
-      if (groupData) setCramGroups(groupData);
+      if (groupData) setCramGroups(groupData as CramGroup[]);
 
       const { data: grammarData } = await supabase
         .from('grammar_metrics')
@@ -151,7 +152,7 @@ export default function Home() {
       
       if (logData) {
         setRecentLogs(logData);
-        logData.forEach(log => {
+        logData.forEach((log: any) => {
           const dayName = days[new Date(log.created_at).getDay()];
           if (aggregatedChart[dayName]) { aggregatedChart[dayName].count += 1; aggregatedChart[dayName].totalScore += log.score; }
         });
@@ -178,19 +179,13 @@ export default function Home() {
 
   const applyCramPreset = (type: 'today' | 'yesterday' | 'week' | 'struggling' | 'failed') => {
     let filteredIds: string[] = [];
-
-    // Setup Calendar Boundaries
     const now = new Date();
-    
-    // Start of TODAY (Midnight)
     const startOfToday = new Date(now);
     startOfToday.setHours(0, 0, 0, 0);
 
-    // Start of YESTERDAY (Midnight yesterday)
     const startOfYesterday = new Date(startOfToday);
     startOfYesterday.setDate(startOfYesterday.getDate() - 1);
 
-    // Start of 7 DAYS AGO
     const startOfWeek = new Date(startOfToday);
     startOfWeek.setDate(startOfWeek.getDate() - 7);
 
@@ -251,7 +246,7 @@ export default function Home() {
     const supabase = getSupabase();
     if (supabase) {
       const newGroup = { name: newGroupName.trim(), vocab_ids: cramSelectedIds };
-      const { data, error } = await supabase.from('cram_groups').insert([newGroup]).select().single();
+      const { data, error } = await supabase.from('cram_groups').insert([newGroup] as any).select().single() as any;
       if (data) {
         setCramGroups(prev => [data, ...prev]);
         setNewGroupName("");
@@ -293,7 +288,7 @@ export default function Home() {
 
   const startCramming = () => {
     if (cramSelectedIds.length === 0) return;
-    setIsNavigatingToCram(true); // TRIGGER LOADING SCREEN
+    setIsNavigatingToCram(true); 
     sessionStorage.setItem('cram_vocab_ids', JSON.stringify(cramSelectedIds));
     sessionStorage.removeItem('cram_drill_state'); 
     sessionStorage.removeItem('cram_explicitly_paused');
@@ -312,6 +307,12 @@ export default function Home() {
     <main className="min-h-screen bg-[#fafafa] flex flex-col items-center p-4 sm:p-8 relative overflow-x-hidden">
       <style dangerouslySetInnerHTML={{__html: `@keyframes floatBreathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.03); } } .animate-float-breathe { animation: floatBreathe 5s ease-in-out infinite; }`}} />
       <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-gradient-to-br from-pink-100/40 via-purple-50/20 to-indigo-100/40 z-0 pointer-events-none"></div>
+
+      {isDemoMode && (
+        <div className="fixed top-4 left-4 z-[400] bg-indigo-500 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-indigo-400">
+          Demo Mode
+        </div>
+      )}
 
       {toast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] animate-in slide-in-from-top-10 fade-in duration-300">

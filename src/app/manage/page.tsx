@@ -4,8 +4,15 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import DictionaryModal from "@/components/DictionaryModal";
+import { initDemoDB, mockSupabase } from "@/lib/mockSupabaseClient";
+
+const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
 const getSupabase = () => {
+  if (isDemoMode) {
+    initDemoDB();
+    return mockSupabase;
+  }
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
   if (!url || !key) return null;
@@ -543,6 +550,12 @@ export default function ManageVocab() {
       
       {/* Background Glow */}
       <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-gradient-to-br from-pink-100/40 via-purple-50/20 to-indigo-100/40 z-0 pointer-events-none"></div>
+
+      {isDemoMode && (
+        <div className="fixed top-4 left-4 z-[400] bg-indigo-500 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-indigo-400">
+          Demo Mode
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto w-full z-10 relative">
         

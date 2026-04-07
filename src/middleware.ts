@@ -4,6 +4,12 @@ import type { NextRequest } from 'next/server';
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // --- DEMO MODE VIP BYPASS ---
+  // If the Vercel environment variable is set to true, skip all auth checks entirely.
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
+    return NextResponse.next();
+  }
+
   // Allow unrestricted access to the login page and the login API
   if (pathname === '/login' || pathname === '/api/auth/login') {
     return NextResponse.next();

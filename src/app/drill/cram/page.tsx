@@ -6,8 +6,15 @@ import { useRouter } from "next/navigation";
 import { evaluateAnswer } from "@/lib/logic";
 import { createClient } from "@supabase/supabase-js";
 import DictionaryModal from "@/components/DictionaryModal";
+import { initDemoDB, mockSupabase } from "@/lib/mockSupabaseClient";
+
+const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
 const getSupabase = () => {
+  if (isDemoMode) {
+    initDemoDB();
+    return mockSupabase;
+  }
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
   if (!url || !key) return null;
@@ -206,7 +213,6 @@ export default function CramDrill() {
     }
   };
 
-  // NEW: Triggers the explicit pause flag so the dashboard doesn't instantly send you back
   const handlePause = () => {
     sessionStorage.setItem('cram_explicitly_paused', 'true');
     router.push('/');
@@ -227,10 +233,16 @@ export default function CramDrill() {
 
   return (
     <main className="min-h-[100dvh] bg-[#fafafa] flex flex-col items-center justify-start sm:justify-center p-4 pt-8 sm:p-8 pb-[calc(env(safe-area-inset-bottom)+5rem)] select-none">
+      
+      {isDemoMode && (
+        <div className="fixed top-4 left-4 z-[400] bg-indigo-500 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-indigo-400">
+          Demo Mode
+        </div>
+      )}
+
       <div className="max-w-md sm:max-w-xl md:max-w-2xl w-full bg-white/80 backdrop-blur-xl p-6 sm:p-10 rounded-[2.5rem] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border-2 border-rose-50 relative">
         
         <header className="mb-6 sm:mb-8 text-center relative">
-          {/* UPDATED: Uses the explicit handlePause function */}
           <button onClick={handlePause} className="absolute left-0 top-0 text-slate-300 hover:text-slate-500 transition-colors p-2 sm:p-0">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-7 sm:h-7"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
