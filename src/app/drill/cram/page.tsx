@@ -90,7 +90,7 @@ export default function CramDrill() {
       
       // Initialize progress to 0 for all selected words
       const initialProgress: Record<string, number> = {};
-      data.forEach(v => initialProgress[v.id] = 0);
+      data.forEach((v: any) => initialProgress[v.id] = 0);
       setWordProgress(initialProgress);
       wordProgressRef.current = initialProgress;
 
@@ -117,7 +117,7 @@ export default function CramDrill() {
   }, [currentPrompt, feedback, modalWord]);
 
   function pickNextWord(vocabList: any[], progressMap: Record<string, number>, lastWordId: string | null) {
-    const activeWords = vocabList.filter(w => (progressMap[w.id] || 0) < 3);
+    const activeWords = vocabList.filter((w: any) => (progressMap[w.id] || 0) < 3);
     
     if (activeWords.length === 0) {
       setPhase("done");
@@ -126,7 +126,7 @@ export default function CramDrill() {
 
     let selectable = activeWords;
     if (activeWords.length > 1 && lastWordId) {
-      selectable = activeWords.filter(w => w.id !== lastWordId);
+      selectable = activeWords.filter((w: any) => w.id !== lastWordId);
     }
 
     const nextWord = selectable[Math.floor(Math.random() * selectable.length)];
@@ -197,13 +197,13 @@ export default function CramDrill() {
 
   const openDictionaryForCurrentWord = () => {
     if (!currentPrompt || !feedback) return;
-    const baseWord = dbVocabRef.current.find(w => w.id === currentPrompt.id);
+    const baseWord = dbVocabRef.current.find((w: any) => w.id === currentPrompt.id);
     if (baseWord) setModalWord(baseWord);
   };
 
   const handleModalUpdate = (updatedWord: any) => {
     setModalWord(updatedWord);
-    const idx = dbVocabRef.current.findIndex(w => w.id === updatedWord.id);
+    const idx = dbVocabRef.current.findIndex((w: any) => w.id === updatedWord.id);
     if (idx !== -1) {
       dbVocabRef.current[idx] = { ...dbVocabRef.current[idx], ...updatedWord };
       setDbVocab([...dbVocabRef.current]);
