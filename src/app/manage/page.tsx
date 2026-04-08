@@ -46,7 +46,7 @@ const PROMPT_TYPES = [
   { id: "gemini_sentence_prompt", label: "Sentences" },
   { id: "gemini_mnemonic_prompt", label: "Mnemonics" },
   { id: "gemini_sql_prompt", label: "SQL Pipeline" },
-  { id: "gemini_sentence_explanation_prompt", label: "Explain Sentence" } // NEW PROMPT ADDED
+  { id: "gemini_sentence_explanation_prompt", label: "Explain Sentence" }
 ];
 
 // ────────────────────────────────────────────────────────────────
@@ -179,7 +179,7 @@ export default function ManageVocab() {
       const { data, error } = await supabase
         .from("app_settings")
         .select("key, value")
-        .in("key", ["gemini_sql_prompt", "gemini_sentence_prompt", "gemini_mnemonic_prompt", "gemini_sentence_explanation_prompt"]); // ADDED TO DB FETCH
+        .in("key", ["gemini_sql_prompt", "gemini_sentence_prompt", "gemini_mnemonic_prompt", "gemini_sentence_explanation_prompt"]);
 
       if (error) {
         console.error("Error fetching prompts:", error);
@@ -188,7 +188,8 @@ export default function ManageVocab() {
 
       if (data) {
         const mapping: Record<string, string> = {};
-        data.forEach(item => mapping[item.key] = item.value);
+        // FIXED: Added (item: any)
+        data.forEach((item: any) => mapping[item.key] = item.value);
         setPromptsDict(mapping);
         setEditedPrompt(mapping["gemini_sentence_prompt"] || "");
       }
