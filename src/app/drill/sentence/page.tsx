@@ -88,7 +88,7 @@ export default function SentenceDrill() {
     }
 
     if (vocabData) {
-      const validVocab = vocabData.filter(v => v.sentences && v.sentences.length > 0);
+      const validVocab = vocabData.filter((v: any) => v.sentences && v.sentences.length > 0);
       dbVocabRef.current = validVocab;
       setDbVocab(validVocab);
     } else {
@@ -166,7 +166,7 @@ export default function SentenceDrill() {
     setFeedback(null);
     setUserInput("");
     setMnemonic(null);
-    setExplanation(null); // Clear explanation state on next
+    setExplanation(null); 
     setShowTarget(false);
     pickAndSetPrompt(dbVocabRef.current);
     setTimeout(() => { actionLock.current = false; }, 300);
@@ -187,12 +187,10 @@ export default function SentenceDrill() {
     finally { setIsGeneratingMnemonic(false); }
   };
 
-  // NEW FUNCTION: Request grammar explanation from Gemini with precise error catching
   const handleExplainSentence = async () => {
     if (!currentPrompt) return;
     setIsGeneratingExplanation(true); setExplanation(null);
     try {
-      // Reconstruct the full sentence by swapping the blank with the target word
       const fullAlbanianSentence = currentPrompt.blanked_albanian.replace("___", currentPrompt.expected);
       const res = await fetch('/api/explain-sentence', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -203,7 +201,6 @@ export default function SentenceDrill() {
       if (res.ok) {
         setExplanation(data.explanation);
       } else {
-        // This will expose the *exact* error to you on the screen
         alert(`API Error: ${data.error || "Failed to generate explanation."}`);
       }
     } catch (err: any) {
@@ -237,7 +234,7 @@ export default function SentenceDrill() {
         const gValue = prompt.grammar_value;
 
         const updateMetric = async (dType: string, dValue: string) => {
-          const oldStat = grammarMetricsRef.current.find(m => m.dimension_type === dType && m.dimension_value === dValue);
+          const oldStat = grammarMetricsRef.current.find((m: any) => m.dimension_type === dType && m.dimension_value === dValue);
           if (oldStat) {
             const newScore = updateGlobalGrammarStat(oldStat.mastery_score, score, oldStat.total_reviews);
             oldStat.mastery_score = newScore; oldStat.total_reviews += 1;
@@ -296,15 +293,14 @@ export default function SentenceDrill() {
   };
 
   const openDictionaryForCurrentWord = () => {
-    // Only allow opening the dictionary if feedback exists
     if (!currentPrompt || !feedback) return;
-    const baseWord = dbVocabRef.current.find(w => w.id === currentPrompt.vocab_id);
+    const baseWord = dbVocabRef.current.find((w: any) => w.id === currentPrompt.vocab_id);
     if (baseWord) setModalWord(baseWord);
   };
 
   const handleModalUpdate = (updatedWord: any) => {
     setModalWord(updatedWord);
-    const idx = dbVocabRef.current.findIndex(w => w.id === updatedWord.id);
+    const idx = dbVocabRef.current.findIndex((w: any) => w.id === updatedWord.id);
     if (idx !== -1) dbVocabRef.current[idx] = { ...dbVocabRef.current[idx], ...updatedWord };
   };
 
@@ -319,7 +315,7 @@ export default function SentenceDrill() {
   }
 
   if (phase === "setup") {
-    const dueCount = dbVocabRef.current.filter(w => !w.next_review || new Date(w.next_review) <= new Date()).length;
+    const dueCount = dbVocabRef.current.filter((w: any) => !w.next_review || new Date(w.next_review) <= new Date()).length;
     if (loadError) {
       return (
         <main className="min-h-[100dvh] bg-[#fafafa] flex items-center justify-center p-6 pb-[calc(env(safe-area-inset-bottom)+5rem)]">
