@@ -188,7 +188,7 @@ export default function ManageVocab() {
 
       if (data) {
         const mapping: Record<string, string> = {};
-        // FIXED: Added (item: any)
+        // The key fix for the implicit any error:
         data.forEach((item: any) => mapping[item.key] = item.value);
         setPromptsDict(mapping);
         setEditedPrompt(mapping["gemini_sentence_prompt"] || "");
@@ -212,29 +212,29 @@ export default function ManageVocab() {
     if (q.length < 2) return null;
 
     // 1. Check Exact Match
-    const exactVocab = vocabList.find(v => v.albanian.toLowerCase() === q);
+    const exactVocab = vocabList.find((v: any) => v.albanian.toLowerCase() === q);
     if (exactVocab) return `Already in library: ${exactVocab.albanian} (${exactVocab.english})`;
 
     // 2. Deep check verbs
     for (const c of allConjugations) {
-      if ([c.une, c.ti, c.ai_ajo, c.ne, c.ju, c.ata_ato].some(v => v && v.toLowerCase() === q)) {
-        const parent = vocabList.find(v => v.id === c.vocab_id);
+      if ([c.une, c.ti, c.ai_ajo, c.ne, c.ju, c.ata_ato].some((v: any) => v && v.toLowerCase() === q)) {
+        const parent = vocabList.find((v: any) => v.id === c.vocab_id);
         return parent ? `Matches conjugation of ${parent.albanian}` : `Matches a verb conjugation`;
       }
     }
     
     // 3. Deep check nouns
     for (const n of allNouns) {
-      if ([n.indef_sg, n.def_sg, n.indef_pl, n.def_pl].some(v => v && v.toLowerCase() === q)) {
-        const parent = vocabList.find(v => v.id === n.vocab_id);
+      if ([n.indef_sg, n.def_sg, n.indef_pl, n.def_pl].some((v: any) => v && v.toLowerCase() === q)) {
+        const parent = vocabList.find((v: any) => v.id === n.vocab_id);
         return parent ? `Matches declension of ${parent.albanian}` : `Matches a noun declension`;
       }
     }
     
     // 4. Deep check adjectives
     for (const a of allAdjectives) {
-      if ([a.masc_sg, a.fem_sg, a.masc_pl, a.fem_pl].some(v => v && v.toLowerCase() === q)) {
-        const parent = vocabList.find(v => v.id === a.vocab_id);
+      if ([a.masc_sg, a.fem_sg, a.masc_pl, a.fem_pl].some((v: any) => v && v.toLowerCase() === q)) {
+        const parent = vocabList.find((v: any) => v.id === a.vocab_id);
         return parent ? `Matches adjective form of ${parent.albanian}` : `Matches an adjective form`;
       }
     }
@@ -496,7 +496,7 @@ export default function ManageVocab() {
       for (const c of allConjugations) {
         if (c.vocab_id === item.id) {
           const vals = [c.une, c.ti, c.ai_ajo, c.ne, c.ju, c.ata_ato];
-          const match = vals.find(v => v && v.toLowerCase().includes(q));
+          const match = vals.find((v: any) => v && v.toLowerCase().includes(q));
           if (match) { matchReason = `↳ Matches: ${match}`; break; }
         }
       }
@@ -505,7 +505,7 @@ export default function ManageVocab() {
       for (const a of allAdjectives) {
         if (a.vocab_id === item.id) {
           const vals = [a.masc_sg, a.fem_sg, a.masc_pl, a.fem_pl];
-          const match = vals.find(v => v && v.toLowerCase().includes(q));
+          const match = vals.find((v: any) => v && v.toLowerCase().includes(q));
           if (match) { matchReason = `↳ Matches: ${match}`; break; }
         }
       }
@@ -514,7 +514,7 @@ export default function ManageVocab() {
       for (const n of allNouns) {
         if (n.vocab_id === item.id) {
           const vals = [n.indef_sg, n.def_sg, n.indef_pl, n.def_pl];
-          const match = vals.find(v => v && v.toLowerCase().includes(q));
+          const match = vals.find((v: any) => v && v.toLowerCase().includes(q));
           if (match) { matchReason = `↳ Matches: ${match}`; break; }
         }
       }
