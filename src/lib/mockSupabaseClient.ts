@@ -57,4 +57,68 @@ class MockQueryBuilder implements PromiseLike<any> {
         let result: any = null;
 
         if (this.operation === 'insert') {
-          const newRecords = Array.isArray(this.payload) ? this.
+          const newRecords = Array.isArray(this.payload) ? this.payload : [this.payload];
+          newRecords.forEach(r => { if (!r.id) r.id = Math.random().toString(36).substring(2, 15); });
+          data = [...newRecords, ...data];
+          localStorage.setItem(this.table, JSON.stringify(data));
+          result = newRecords;
+        } 
+        else if (this.operation === 'update') {
+          data = data.map((row: any) => {
+            const match = this.filters.every(f => row[f.col] === f.val);
+            return match ? { ...row, ...this.payload } : row;
+          });
+          localStorage.setItem(this.table, JSON.stringify(data));
+          result = data.filter((row: any) => this.filters.every(f => row[f.col] === f.val));
+        } 
+        else if (this.operation === 'delete') {
+          data = data.filter((row: any) => !this.filters.every(f => row[f.col] === f.val));
+          localStorage.setItem(this.table, JSON.stringify(data));
+          result = null; 
+        }
+        else if (this.operation === 'upsert') {
+          const record = Array.isArray(this.payload) ? this.payload[0] : this.payload;
+          const conflictCol = record.key ? 'key' : 'id';
+          const existingIdx = data.findIndex((r: any) => r[conflictCol] === record[conflictCol]);
+          
+          if (existingIdx >= 0) {
+            data[existingIdx] = { ...data[existingIdx], ...record };
+          } else {
+            if (!record.id) record.id = Math.random().toString(36).substring(2, 15);
+            data.unshift(record);
+          }
+          localStorage.setItem(this.table, JSON.stringify(data));
+          result = [record];
+        } 
+        else if (this.operation === 'select') {
+          result = [...data];
+          this.filters.forEach(f => {
+            if (f.type === 'eq') result = result.filter((r: any) => r[f.col] === f.val);
+            if (f.type === 'in') result = result.filter((r: any) => f.val.includes(r[f.col]));
+            if (f.type === 'gte') result = result.filter((r: any) => new Date(r[f.col]) >= new Date(f.val));
+          });
+          if (this.orderConfig) {
+            const { col, ascending } = this.orderConfig;
+            result.sort((a: any, b: any) => {
+              if (a[col] < b[col]) return ascending ? -1 : 1;
+              if (a[col] > b[col]) return ascending ? 1 : -1;
+              return 0;
+            });
+          }
+          if (this.limitCount) result = result.slice(0, this.limitCount);
+          if (this.returnSingle) result = result[0] || null;
+          if (this.returnMaybeSingle) result = result.length > 0 ? result[0] : null;
+        }
+
+        resolve({ data: result, error: null });
+      } catch (err: any) {
+        resolve({ data: null, error: { message: err.message } });
+      }
+    }).then(onfulfilled, onrejected);
+  }
+}
+
+// 3. Exported as 'any' to stop TypeScript from policing the mock methods
+export const mockSupabase: any = {
+  from: (table: string) => new MockQueryBuilder(table)
+};
