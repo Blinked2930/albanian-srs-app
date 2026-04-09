@@ -104,7 +104,7 @@ export default function ImmersionReader() {
 
   const handleGenerateStory = async () => {
     if (isDemoMode) {
-      showToast("Ghost Mode: Live AI story generation is disabled for guests.", "👻");
+      showToast("Ghost Mode: Story generation is disabled for guests.", "👻");
       return;
     }
 
