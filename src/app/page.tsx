@@ -3,22 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { initDemoDB, mockSupabase } from "@/lib/mockSupabaseClient";
-
-const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
-
-const getSupabase = () => {
-  if (isDemoMode) {
-    initDemoDB();
-    return mockSupabase;
-  }
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-  if (!url || !key) return null;
-  return createClient(url, key);
-};
+import { supabase, isDemoMode } from "@/lib/supabaseClient";
 
 interface ChartData { name: string; avgScore: number; wordsReviewed: number; }
 interface GrammarMetric { dimension_type: string; dimension_value: string; mastery_score: number; }
@@ -118,8 +104,6 @@ export default function Home() {
 
   async function fetchDashboardData() {
     setLoading(true);
-    const supabase = getSupabase();
-    if (!supabase) { setLoading(false); return; }
 
     try {
       const { data: vocabData, error: vocabError } = await supabase
@@ -241,36 +225,45 @@ export default function Home() {
   };
 
   const handleSaveGroup = async () => {
+    if (isDemoMode) {
+      showToast("Saving custom groups is disabled for guests.", "👻");
+      setIsNamingGroup(false);
+      return;
+    }
+    
     if (!newGroupName.trim() || cramSelectedIds.length === 0) return;
     setIsSavingGroup(true);
-    const supabase = getSupabase();
-    if (supabase) {
-      const newGroup = { name: newGroupName.trim(), vocab_ids: cramSelectedIds };
-      const { data, error } = await supabase.from('cram_groups').insert([newGroup] as any).select().single() as any;
-      if (data) {
-        setCramGroups(prev => [data, ...prev]);
-        setNewGroupName("");
-        setIsNamingGroup(false);
-        showToast(`Saved group "${data.name}"`, "📁");
-      }
+    
+    const newGroup = { name: newGroupName.trim(), vocab_ids: cramSelectedIds };
+    const { data, error } = await supabase.from('cram_groups').insert([newGroup] as any).select().single() as any;
+    
+    if (data) {
+      setCramGroups(prev => [data, ...prev]);
+      setNewGroupName("");
+      setIsNamingGroup(false);
+      showToast(`Saved group "${data.name}"`, "📁");
     }
+    
     setIsSavingGroup(false);
   };
 
   const promptDeleteGroup = (id: string, name: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isDemoMode) {
+      showToast("Deleting groups is disabled for guests.", "👻");
+      return;
+    }
     setGroupToDelete({ id, name });
   };
 
   const confirmDeleteGroup = async () => {
     if (!groupToDelete) return;
     setIsDeletingGroup(true);
-    const supabase = getSupabase();
-    if (supabase) {
-      await supabase.from('cram_groups').delete().eq('id', groupToDelete.id);
-      setCramGroups(prev => prev.filter(g => g.id !== groupToDelete.id));
-      showToast("Group deleted", "🗑️");
-    }
+    
+    await supabase.from('cram_groups').delete().eq('id', groupToDelete.id);
+    setCramGroups(prev => prev.filter(g => g.id !== groupToDelete.id));
+    showToast("Group deleted", "🗑️");
+    
     setIsDeletingGroup(false);
     setGroupToDelete(null);
   };
@@ -309,8 +302,9 @@ export default function Home() {
       <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-gradient-to-br from-pink-100/40 via-purple-50/20 to-indigo-100/40 z-0 pointer-events-none"></div>
 
       {isDemoMode && (
-        <div className="fixed top-4 left-4 z-[400] bg-indigo-500 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-indigo-400">
-          Demo Mode
+        <div className="fixed top-4 left-4 z-[400] bg-slate-800 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-slate-600 flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+          Ghost Mode: Read Only
         </div>
       )}
 
@@ -479,9 +473,11 @@ export default function Home() {
                     {cramGroups.map(group => (
                       <div key={group.id} className="relative group inline-flex items-center bg-white border-2 border-indigo-100 text-indigo-600 rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md hover:border-indigo-200">
                          <button onClick={() => loadGroup(group.vocab_ids)} className="px-3 py-2 whitespace-nowrap active:scale-95">{group.name} ({group.vocab_ids.length})</button>
-                         <button onClick={(e) => promptDeleteGroup(group.id, group.name, e)} className="px-2.5 py-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors border-l-2 border-indigo-50 active:scale-95 rounded-r-lg" title="Delete Group">
-                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                         </button>
+                         {!isDemoMode && (
+                           <button onClick={(e) => promptDeleteGroup(group.id, group.name, e)} className="px-2.5 py-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors border-l-2 border-indigo-50 active:scale-95 rounded-r-lg" title="Delete Group">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                           </button>
+                         )}
                       </div>
                     ))}
                  </div>
@@ -524,7 +520,13 @@ export default function Home() {
               <div className="flex gap-2 sm:gap-3">
                 {cramSelectedIds.length > 0 && (
                   <button 
-                    onClick={() => setIsNamingGroup(true)}
+                    onClick={() => {
+                      if (isDemoMode) {
+                        showToast("Saving groups is disabled in Ghost Mode.", "👻");
+                        return;
+                      }
+                      setIsNamingGroup(true);
+                    }}
                     className="bg-indigo-50 hover:bg-indigo-100 text-indigo-500 border-2 border-indigo-100 font-black py-3.5 px-4 rounded-2xl transition-all active:scale-95 animate-in slide-in-from-right-4 fade-in"
                     title="Save as Group"
                   >
@@ -551,7 +553,7 @@ export default function Home() {
         </div>
       )}
 
-      {isNamingGroup && (
+      {isNamingGroup && !isDemoMode && (
         <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsNamingGroup(false)}>
           <div className="bg-white rounded-[2rem] p-6 sm:p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             <h3 className="text-xl font-black text-slate-800 mb-2">Save Custom Group</h3>
@@ -581,7 +583,7 @@ export default function Home() {
         </div>
       )}
 
-      {groupToDelete && (
+      {groupToDelete && !isDemoMode && (
         <div className="fixed inset-0 z-[260] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setGroupToDelete(null)}>
           <div className="bg-white rounded-[2rem] p-6 sm:p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             <h3 className="text-xl font-black text-slate-800 mb-2">Delete Group?</h3>
