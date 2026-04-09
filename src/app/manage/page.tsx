@@ -377,7 +377,7 @@ export default function ManageVocab() {
 
   const handleGenerateSentences = async () => {
     if (isDemoMode) {
-      alert("Ghost Mode: Live AI generation is disabled for guests to save API costs.");
+      alert("Ghost Mode: Live AI generation is disabled for guests to save API costs. Imagine perfectly tailored Albanian sentences generating right here! 🚀");
       return;
     }
     
@@ -547,28 +547,36 @@ export default function ManageVocab() {
             <p className="text-slate-500 font-bold mt-2">Curate your vocabulary and rules.</p>
           </div>
 
-          {/* GHOST MODE HIDES THESE BUTTONS */}
-          {!isDemoMode && (
-            <div className="flex gap-3 flex-wrap justify-center md:justify-end">
-              <button onClick={() => setIsPromptModalOpen(true)} className="bg-white/80 backdrop-blur-md hover:bg-white text-indigo-500 font-bold p-3 rounded-[1rem] transition-colors flex items-center justify-center shadow-sm active:scale-95 border-2 border-white" title="Data Pipeline Prompt">
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" x2="20" y1="19" y2="19" /></svg>
-              </button>
+          <div className="flex gap-3 flex-wrap justify-center md:justify-end">
+            {/* GHOST MODE HIDES THESE BUTTONS */}
+            {!isDemoMode && (
+              <>
+                <button onClick={() => setIsPromptModalOpen(true)} className="bg-white/80 backdrop-blur-md hover:bg-white text-indigo-500 font-bold p-3 rounded-[1rem] transition-colors flex items-center justify-center shadow-sm active:scale-95 border-2 border-white" title="Data Pipeline Prompt">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" x2="20" y1="19" y2="19" /></svg>
+                </button>
 
-              <button onClick={handleGenerateSentences} disabled={isGenerating} className="bg-emerald-100/80 backdrop-blur-md hover:bg-emerald-100 text-emerald-600 border-2 border-emerald-200 font-bold py-2 sm:py-3 px-4 sm:px-5 rounded-[1rem] transition-colors flex items-center gap-2 active:scale-95 disabled:opacity-50 shadow-sm text-sm sm:text-base">
-                {isGenerating ? <div className="w-5 h-5 border-2 border-emerald-400 border-t-emerald-600 rounded-full animate-spin"></div> : <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /><path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" /></svg>}
-                <span className="hidden sm:inline">{isGenerating ? "Generating..." : "Generate Sentences"}</span>
-                <span className="inline sm:hidden">Sentences</span>
-              </button>
+                <button onClick={handleGenerateSentences} disabled={isGenerating} className="bg-emerald-100/80 backdrop-blur-md hover:bg-emerald-100 text-emerald-600 border-2 border-emerald-200 font-bold py-2 sm:py-3 px-4 sm:px-5 rounded-[1rem] transition-colors flex items-center gap-2 active:scale-95 disabled:opacity-50 shadow-sm text-sm sm:text-base">
+                  {isGenerating ? <div className="w-5 h-5 border-2 border-emerald-400 border-t-emerald-600 rounded-full animate-spin"></div> : <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /><path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" /></svg>}
+                  <span className="hidden sm:inline">{isGenerating ? "Generating..." : "Generate Sentences"}</span>
+                  <span className="inline sm:hidden">Sentences</span>
+                </button>
 
-              <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleImport} />
-              
-              <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="bg-white/80 backdrop-blur-md hover:bg-white text-slate-600 border-2 border-white font-bold py-2 sm:py-3 px-4 sm:px-5 rounded-[1rem] transition-colors flex items-center gap-2 active:scale-95 disabled:opacity-50 shadow-sm text-sm sm:text-base">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" x2="12" y1="3" y2="15" /></svg>
-                <span className="hidden sm:inline">{isImporting ? "Importing..." : "Import CSV"}</span>
-                <span className="inline sm:hidden">Import</span>
-              </button>
-            </div>
-          )}
+                <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleImport} />
+                
+                <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="bg-white/80 backdrop-blur-md hover:bg-white text-slate-600 border-2 border-white font-bold py-2 sm:py-3 px-4 sm:px-5 rounded-[1rem] transition-colors flex items-center gap-2 active:scale-95 disabled:opacity-50 shadow-sm text-sm sm:text-base">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" x2="12" y1="3" y2="15" /></svg>
+                  <span className="hidden sm:inline">{isImporting ? "Importing..." : "Import CSV"}</span>
+                  <span className="inline sm:hidden">Import</span>
+                </button>
+              </>
+            )}
+
+            {/* Export button available to EVERYONE */}
+            <button onClick={handleExport} className="bg-indigo-500 hover:bg-indigo-400 text-white font-black py-2 sm:py-3 px-4 sm:px-6 rounded-[1rem] transition-colors flex items-center gap-2 shadow-[0_4px_14px_rgba(99,102,241,0.4)] active:scale-95 text-sm sm:text-base">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>
+              Export
+            </button>
+          </div>
         </header>
 
         {/* GHOST MODE HIDES THE ADD WORD FORM */}

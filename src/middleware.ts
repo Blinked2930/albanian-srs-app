@@ -31,4 +31,4 @@ export function middleware(req: NextRequest) {
 // but ignore static files like images and Next.js background scripts so it doesn't crash.
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
-};
+}; 

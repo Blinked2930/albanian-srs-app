@@ -18,6 +18,7 @@ export async function POST(req: Request) {
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    // Use the Service Role Key to bypass RLS and read the prompt settings
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
       console.warn("Supabase Error in Explanation API:", promptError);
     }
 
+    // Dynamic prompt fetching with a solid fallback
     const basePrompt = promptData?.value || `
       You are an expert Albanian linguist. 
       The user will provide an Albanian sentence and its English translation. Your job is to break down the grammar of the sentence so the user understands exactly how the Albanian maps to the English.
@@ -49,8 +51,9 @@ export async function POST(req: Request) {
     `;
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    // USING THE EXACT WORKING MODEL STRING FROM YOUR MNEMONIC API
-    const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite-preview" });
+    
+    // 🌟 USING THE STABLE, HIGH-QUOTA MODEL FROM YOUR API DUMP
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const result = await model.generateContent(finalPrompt);
 

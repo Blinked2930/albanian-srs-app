@@ -8,13 +8,13 @@ import { supabase, isDemoMode } from "@/lib/supabaseClient";
 
 interface ChartData { name: string; avgScore: number; wordsReviewed: number; }
 interface GrammarMetric { dimension_type: string; dimension_value: string; mastery_score: number; }
-interface KPIState { totalWords: number; globalMastery: number; activeStreak: number; }
+interface KPIState { totalWords: number; globalMastery: number; activeStreak: number; dueToday: number; addedThisWeek: number; }
 interface CramGroup { id: string; name: string; vocab_ids: string[]; }
 
 export default function Home() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [kpis, setKpis] = useState<KPIState>({ totalWords: 0, globalMastery: 0, activeStreak: 0 });
+  const [kpis, setKpis] = useState<KPIState>({ totalWords: 0, globalMastery: 0, activeStreak: 0, dueToday: 0, addedThisWeek: 0 });
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [grammarPerformance, setGrammarPerformance] = useState<GrammarMetric[]>([]);
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
@@ -45,6 +45,9 @@ export default function Home() {
 
   const [toast, setToast] = useState<{ message: string, emoji: string, type: 'error' | 'info' } | null>(null);
 
+  // Ghost Mode Modal State
+  const [showGhostModal, setShowGhostModal] = useState(false);
+
   useEffect(() => { 
     fetchDashboardData(); 
     checkActiveSessions();
@@ -62,12 +65,10 @@ export default function Home() {
         const parsed = JSON.parse(cramState);
         if (parsed.phase === 'drill') {
           const isExplicitlyPaused = sessionStorage.getItem('cram_explicitly_paused') === 'true';
-          
           if (!isExplicitlyPaused) {
             router.push('/drill/cram');
             return; 
           }
-          
           setActiveCramSession(true);
         }
       } catch (e) {}
@@ -158,7 +159,20 @@ export default function Home() {
     const totalMastery = vocabData.reduce((sum, v) => sum + (Number(v.mastery_score) || 0), 0);
     const globalMastery = totalWords > 0 ? totalMastery / totalWords : 0;
     const maxStreak = totalWords > 0 ? Math.max(...vocabData.map(v => v.streak || 0)) : 0;
-    setKpis({ totalWords, globalMastery: Number(globalMastery.toFixed(2)), activeStreak: maxStreak });
+    
+    const dueToday = vocabData.filter(v => !v.next_review || new Date(v.next_review) <= new Date()).length;
+    
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const addedThisWeek = vocabData.filter(v => new Date(v.created_at) >= oneWeekAgo).length;
+
+    setKpis({ 
+      totalWords, 
+      globalMastery: Number(globalMastery.toFixed(2)), 
+      activeStreak: maxStreak,
+      dueToday,
+      addedThisWeek
+    });
   }
 
   const applyCramPreset = (type: 'today' | 'yesterday' | 'week' | 'struggling' | 'failed') => {
@@ -335,24 +349,33 @@ export default function Home() {
           <div className="space-y-6 sm:space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
               
-              <div className="md:col-span-7 grid grid-cols-3 gap-3 sm:gap-5">
-                <div className="bg-white/80 backdrop-blur-xl p-3 sm:p-6 rounded-2xl sm:rounded-[2rem] border-2 border-white shadow-sm flex flex-col items-center sm:items-start text-center sm:text-left justify-center transition-transform hover:scale-[1.02]">
-                  <h3 className="text-[9px] sm:text-xs uppercase tracking-widest text-indigo-400 mb-1 sm:mb-2 font-black">Words</h3>
-                  <p className="text-2xl sm:text-5xl font-black text-indigo-500">{kpis.totalWords}</p>
+              {/* NEW 2x2 KPI GRID (Replaces the tall stretched columns) */}
+              <div className="md:col-span-7 grid grid-cols-2 gap-3 sm:gap-5">
+                <div className="bg-white/80 backdrop-blur-xl p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border-2 border-white shadow-sm flex flex-col items-center justify-center transition-transform hover:scale-[1.02]">
+                  <h3 className="text-[10px] sm:text-xs uppercase tracking-widest text-indigo-400 mb-1 font-black">Total Words</h3>
+                  <p className="text-4xl sm:text-5xl font-black text-indigo-500 my-2">{kpis.totalWords}</p>
+                  <p className="text-xs font-bold text-slate-400">+{kpis.addedThisWeek} added this week</p>
                 </div>
-                <div className="bg-white/80 backdrop-blur-xl p-3 sm:p-6 rounded-2xl sm:rounded-[2rem] border-2 border-white shadow-sm flex flex-col items-center sm:items-start text-center sm:text-left justify-center transition-transform hover:scale-[1.02]">
-                  <h3 className="text-[9px] sm:text-xs uppercase tracking-widest text-amber-400 mb-1 sm:mb-2 font-black">Mastery</h3>
-                  <p className="text-2xl sm:text-5xl font-black text-amber-500">{kpis.globalMastery}</p>
+                <div className="bg-white/80 backdrop-blur-xl p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border-2 border-white shadow-sm flex flex-col items-center justify-center transition-transform hover:scale-[1.02]">
+                  <h3 className="text-[10px] sm:text-xs uppercase tracking-widest text-amber-400 mb-1 font-black">Avg Mastery</h3>
+                  <p className="text-4xl sm:text-5xl font-black text-amber-500 my-2">{Math.round(kpis.globalMastery * 100)}%</p>
+                  <p className="text-xs font-bold text-slate-400">Overall accuracy score</p>
                 </div>
-                <div className="bg-white/80 backdrop-blur-xl p-3 sm:p-6 rounded-2xl sm:rounded-[2rem] border-2 border-white shadow-sm flex flex-col items-center sm:items-start text-center sm:text-left justify-center transition-transform hover:scale-[1.02]">
-                  <h3 className="text-[9px] sm:text-xs uppercase tracking-widest text-rose-400 mb-1 sm:mb-2 font-black">Streak</h3>
-                  <p className="text-2xl sm:text-5xl font-black text-rose-500">{kpis.activeStreak}</p>
+                <div className="bg-white/80 backdrop-blur-xl p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border-2 border-white shadow-sm flex flex-col items-center justify-center transition-transform hover:scale-[1.02]">
+                  <h3 className="text-[10px] sm:text-xs uppercase tracking-widest text-emerald-400 mb-1 font-black">Due Today</h3>
+                  <p className="text-4xl sm:text-5xl font-black text-emerald-500 my-2">{kpis.dueToday}</p>
+                  <p className="text-xs font-bold text-slate-400">Pending flashcards</p>
+                </div>
+                <div className="bg-white/80 backdrop-blur-xl p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border-2 border-white shadow-sm flex flex-col items-center justify-center transition-transform hover:scale-[1.02]">
+                  <h3 className="text-[10px] sm:text-xs uppercase tracking-widest text-rose-400 mb-1 font-black">Top Streak</h3>
+                  <p className="text-4xl sm:text-5xl font-black text-rose-500 my-2 flex items-center gap-1">{kpis.activeStreak} <span className="text-2xl sm:text-3xl">🔥</span></p>
+                  <p className="text-xs font-bold text-slate-400">Best review sequence</p>
                 </div>
               </div>
 
-              <div className="md:col-span-5 grid grid-cols-2 gap-3 sm:gap-5">
+              <div className="md:col-span-5 flex flex-col gap-3 sm:gap-5">
                 {activeCramSession ? (
-                  <div className="col-span-2 grid grid-cols-3 gap-3 sm:gap-5">
+                  <div className="grid grid-cols-3 gap-3 sm:gap-5 w-full">
                     <button onClick={() => { setIsNavigatingToCram(true); sessionStorage.removeItem('cram_explicitly_paused'); router.push('/drill/cram'); }} className="col-span-2 bg-rose-500 hover:bg-rose-400 text-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-1 sm:gap-2 transition-all active:scale-95 shadow-[0_8px_20px_rgba(244,63,94,0.3)] border-2 border-rose-400/50 relative overflow-hidden">
                       <div className="absolute top-0 inset-x-0 bg-white/20 text-white py-0.5 text-center text-[10px] font-black tracking-widest uppercase">Active Session</div>
                       {isNavigatingToCram ? (
@@ -373,22 +396,29 @@ export default function Home() {
                     </button>
                   </div>
                 ) : (
-                  <button onClick={() => setIsCramModalOpen(true)} className="col-span-2 bg-rose-500 hover:bg-rose-400 text-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(244,63,94,0.3)] border-2 border-rose-400/50">
+                  <button onClick={() => setIsCramModalOpen(true)} className="w-full bg-rose-500 hover:bg-rose-400 text-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(244,63,94,0.3)] border-2 border-rose-400/50">
                     <span className="text-2xl sm:text-3xl">🔥</span>
                     <span className="font-black text-base sm:text-xl tracking-wide">Cram Mode</span>
                   </button>
                 )}
 
-                <Link href="/drill/word" className="relative overflow-hidden bg-indigo-500 hover:bg-indigo-400 text-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-2 sm:gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(99,102,241,0.3)] border-2 border-indigo-400/50">
-                  {activeWordSession && <div className="absolute top-0 inset-x-0 bg-white/20 py-0.5 text-center text-[9px] font-black tracking-widest uppercase">Resume</div>}
-                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`sm:w-10 sm:h-10 ${activeWordSession ? 'mt-2' : ''}`}><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3z"/><path d="M3 4h8s-.5-2-1-2H5a2 2 0 0 0-2 2z"/></svg>
-                  <span className="font-black text-sm sm:text-base">Word Drill</span>
-                </Link>
-                <Link href="/drill/sentence" className="relative overflow-hidden bg-emerald-500 hover:bg-emerald-400 text-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-2 sm:gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(16,185,129,0.3)] border-2 border-emerald-400/50">
-                  {activeSentenceSession && <div className="absolute top-0 inset-x-0 bg-white/20 py-0.5 text-center text-[9px] font-black tracking-widest uppercase">Resume</div>}
-                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`sm:w-10 sm:h-10 ${activeSentenceSession ? 'mt-2' : ''}`}><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg>
-                  <span className="font-black text-sm sm:text-base">Sentences</span>
-                </Link>
+                <div className="grid grid-cols-2 gap-3 sm:gap-5 w-full">
+                  <Link href="/drill/word" className="relative overflow-hidden bg-indigo-500 hover:bg-indigo-400 text-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-2 sm:gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(99,102,241,0.3)] border-2 border-indigo-400/50">
+                    {activeWordSession && <div className="absolute top-0 inset-x-0 bg-white/20 py-0.5 text-center text-[9px] font-black tracking-widest uppercase">Resume</div>}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`sm:w-10 sm:h-10 ${activeWordSession ? 'mt-2' : ''}`}><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3z"/><path d="M3 4h8s-.5-2-1-2H5a2 2 0 0 0-2 2z"/></svg>
+                    <span className="font-black text-sm sm:text-base">Word Drill</span>
+                  </Link>
+                  <Link href="/drill/sentence" className="relative overflow-hidden bg-emerald-500 hover:bg-emerald-400 text-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-2 sm:gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(16,185,129,0.3)] border-2 border-emerald-400/50">
+                    {activeSentenceSession && <div className="absolute top-0 inset-x-0 bg-white/20 py-0.5 text-center text-[9px] font-black tracking-widest uppercase">Resume</div>}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`sm:w-10 sm:h-10 ${activeSentenceSession ? 'mt-2' : ''}`}><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg>
+                    <span className="font-black text-sm sm:text-base">Sentences</span>
+                  </Link>
+
+                  <Link href="/immersion" className="col-span-2 relative overflow-hidden bg-fuchsia-500 hover:bg-fuchsia-400 text-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-[0_8px_20px_rgba(217,70,239,0.3)] border-2 border-fuchsia-400/50">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="sm:w-8 sm:h-8"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    <span className="font-black text-base sm:text-lg">Immersion Stories</span>
+                  </Link>
+                </div>
               </div>
             </div>
 
@@ -595,6 +625,24 @@ export default function Home() {
                  {isDeletingGroup ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : "Delete"}
                </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* GHOST MODE MODAL */}
+      {showGhostModal && (
+        <div className="fixed inset-0 z-[500] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowGhostModal(false)}>
+          <div className="bg-white rounded-[2rem] p-6 sm:p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95 flex flex-col items-center text-center" onClick={e => e.stopPropagation()}>
+            <div className="w-16 h-16 bg-indigo-100 text-indigo-500 rounded-full flex items-center justify-center mb-6 shadow-inner text-3xl">
+              👻
+            </div>
+            <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Ghost Mode Active</h3>
+            <p className="text-slate-500 font-bold mb-8">
+              Live AI generation is disabled for guests to save API costs. Imagine perfectly tailored Albanian sentences generating right here! 🚀
+            </p>
+            <button onClick={() => setShowGhostModal(false)} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-black py-3.5 rounded-xl transition-colors active:scale-95">
+              Got it!
+            </button>
           </div>
         </div>
       )}
