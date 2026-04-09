@@ -112,7 +112,7 @@ export default function ManageVocab() {
 
   useEffect(() => {
     fetchVocab();
-    fetchAllPrompts();
+    if (!isDemoMode) fetchAllPrompts();
   }, []);
 
   // Close dropdown on scroll or resize
@@ -377,7 +377,7 @@ export default function ManageVocab() {
 
   const handleGenerateSentences = async () => {
     if (isDemoMode) {
-      alert("Ghost Mode: Live AI generation is disabled for guests to save API costs. Imagine perfectly tailored Albanian sentences generating right here! 🚀");
+      alert("Ghost Mode: Live AI generation is disabled for guests to save API costs.");
       return;
     }
     

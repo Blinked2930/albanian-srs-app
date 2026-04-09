@@ -390,7 +390,7 @@ export default function SentenceDrill() {
               </div>
               <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Ghost Mode Active</h3>
               <p className="text-slate-500 font-bold mb-8">
-                Live AI generation is disabled for guests to save API costs. Imagine perfectly tailored Albanian sentences generating right here! 🚀
+                Live generation is disabled for guests to save on computing power. Imagine perfectly tailored Albanian sentences generating right here! 🚀
               </p>
               <button onClick={() => setShowGhostModal(false)} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-black py-3.5 rounded-xl transition-colors active:scale-95">
                 Got it!
