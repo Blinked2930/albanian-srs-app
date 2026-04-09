@@ -4,22 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { evaluateAnswer, scheduleSRS, pickDueWord, updateGlobalGrammarStat } from "@/lib/logic";
-import { createClient } from "@supabase/supabase-js";
 import DictionaryModal from "@/components/DictionaryModal";
-import { initDemoDB, mockSupabase } from "@/lib/mockSupabaseClient";
-
-const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
-
-const getSupabase = () => {
-  if (isDemoMode) {
-    initDemoDB();
-    return mockSupabase;
-  }
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-  if (!url || !key) return null;
-  return createClient(url, key);
-};
+import { supabase, isDemoMode } from "@/lib/supabaseClient";
 
 export default function SentenceDrill() {
   const router = useRouter();
@@ -35,7 +21,6 @@ export default function SentenceDrill() {
   const [mnemonic, setMnemonic] = useState<string | null>(null);
   const [isGeneratingMnemonic, setIsGeneratingMnemonic] = useState(false);
 
-  // NEW STATE: For the Sentence Explanation
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isGeneratingExplanation, setIsGeneratingExplanation] = useState(false);
 
@@ -61,18 +46,18 @@ export default function SentenceDrill() {
 
   async function loadData() {
     setPhase("loading");
-    const supabase = getSupabase();
-    if (!supabase) { setLoadError("Supabase is not configured."); setPhase("setup"); return; }
     setLoadError(null);
 
-    // Purge old sentences (older than 14 days) on page load
-    try {
-      const twoWeeksAgo = new Date();
-      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-      const { error: purgeError } = await supabase.from('sentences').delete().lt('created_at', twoWeeksAgo.toISOString());
-      if (purgeError) console.error("Sentence Purge Failed:", purgeError);
-    } catch (e) {
-      console.error("Purge Exception:", e);
+    // GHOST MODE: Do not let guests trigger database purges
+    if (!isDemoMode) {
+      try {
+        const twoWeeksAgo = new Date();
+        twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+        const { error: purgeError } = await supabase.from('sentences').delete().lt('created_at', twoWeeksAgo.toISOString());
+        if (purgeError) console.error("Sentence Purge Failed:", purgeError);
+      } catch (e) {
+        console.error("Purge Exception:", e);
+      }
     }
 
     const { data: metricsData } = await supabase.from("grammar_metrics").select("*");
@@ -112,6 +97,11 @@ export default function SentenceDrill() {
   }
 
   const handleGenerateSentences = async () => {
+    if (isDemoMode) {
+      alert("Ghost Mode: Live AI generation is disabled for guests to save API costs. Imagine perfectly tailored Albanian sentences generating right here! 🚀");
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const res = await fetch('/api/generate-sentences', { method: 'POST' });
@@ -174,6 +164,11 @@ export default function SentenceDrill() {
 
   const handleGenerateMnemonic = async () => {
     if (!currentPrompt) return;
+    if (isDemoMode) {
+      setMnemonic(`✨ **Ghost Mode:**\n\nAI generation is turned off for guests. In the real app, Gemini generates custom mnemonic stories here!`);
+      return;
+    }
+
     setIsGeneratingMnemonic(true); setMnemonic(null);
     try {
       const res = await fetch('/api/generate-mnemonic', {
@@ -189,6 +184,11 @@ export default function SentenceDrill() {
 
   const handleExplainSentence = async () => {
     if (!currentPrompt) return;
+    if (isDemoMode) {
+      setExplanation(`✨ **Ghost Mode Grammar Breakdown:**\n\nIn the real app, Gemini breaks down the exact tense, conjugations, and cultural context of this sentence structure right here!`);
+      return;
+    }
+
     setIsGeneratingExplanation(true); setExplanation(null);
     try {
       const fullAlbanianSentence = currentPrompt.blanked_albanian.replace("___", currentPrompt.expected);
@@ -213,19 +213,21 @@ export default function SentenceDrill() {
 
   async function updateMastery(prompt: any, score: number) {
     try {
-      const supabase = getSupabase();
-      if (!supabase) throw new Error("Supabase client not initialized");
-
       const schedule = scheduleSRS(score, prompt.interval, prompt.ease_factor, prompt.streak, prompt.usefulness);
       const updatedValues = {
         next_review: schedule.nextReview, interval: schedule.newInterval, ease_factor: schedule.newEaseFactor,
         streak: schedule.newStreak, mastery_score: schedule.newMastery, confidence: schedule.newConfidence, last_seen: new Date().toISOString()
       };
 
-      await supabase.from("vocab").update(updatedValues).eq("id", prompt.vocab_id);
-
+      // 1. UPDATE LOCAL STATE IMMEDIATELY (So UI updates correctly)
       const idx = dbVocabRef.current.findIndex((w: any) => w.id === prompt.vocab_id);
       if (idx !== -1) { dbVocabRef.current[idx] = { ...dbVocabRef.current[idx], ...updatedValues }; }
+
+      // 2. GHOST MODE BYPASS
+      if (isDemoMode) return;
+
+      // 3. EXECUTE SUPABASE WRITES
+      await supabase.from("vocab").update(updatedValues).eq("id", prompt.vocab_id);
 
       let grammarMasteryId = null;
 
@@ -334,8 +336,9 @@ export default function SentenceDrill() {
       <main className="min-h-[100dvh] bg-[#fafafa] flex flex-col items-center p-6 pt-12 sm:pt-20 pb-[calc(env(safe-area-inset-bottom)+5rem)] select-none">
         
         {isDemoMode && (
-          <div className="fixed top-4 left-4 z-[400] bg-indigo-500 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-indigo-400">
-            Demo Mode
+          <div className="fixed top-4 left-4 z-[400] bg-slate-800 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-slate-600 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+            Ghost Mode: Read Only
           </div>
         )}
 
@@ -382,8 +385,9 @@ export default function SentenceDrill() {
     <main className="min-h-[100dvh] bg-[#fafafa] flex flex-col items-center justify-start sm:justify-center p-4 pt-8 sm:p-8 pb-[calc(env(safe-area-inset-bottom)+5rem)] select-none">
       
       {isDemoMode && (
-        <div className="fixed top-4 left-4 z-[400] bg-indigo-500 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-indigo-400">
-          Demo Mode
+        <div className="fixed top-4 left-4 z-[400] bg-slate-800 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-slate-600 flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+          Ghost Mode: Read Only
         </div>
       )}
 
