@@ -1,14 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const getSupabase = () => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-    if (!url || !key) return null;
-    return createClient(url, key);
-};
+import { supabase, isDemoMode } from "@/lib/supabaseClient";
 
 const mockCategories = ["Unknown", "Phrase", "Adjective", "Verb", "Adverb", "Noun (M)", "Noun (F)", "Command", "Preposition"];
 
@@ -37,8 +30,6 @@ export default function DictionaryModal({ word, onClose, onUpdate }: { word: any
     const fetchGrammar = async () => {
         if (!word) return;
         setLoading(true);
-        const supabase = getSupabase();
-        if (!supabase) return;
 
         try {
             if (word.type === "Verb" || word.type === "Command") {
@@ -85,15 +76,13 @@ export default function DictionaryModal({ word, onClose, onUpdate }: { word: any
                 if (el) {
                     el.scrollIntoView({ behavior: "smooth", block: "center" });
                 }
-            }, 300); // Small delay to ensure the DOM has painted the grid
+            }, 300); 
         }
     }, [loading, highlightValue]);
 
     const handleSave = async () => {
-        if (!word || isSaving) return;
+        if (!word || isSaving || isDemoMode) return;
         setIsSaving(true);
-        const supabase = getSupabase();
-        if (!supabase) return;
 
         const updatedData = { albanian: editForm.albanian.trim(), english: editForm.english.trim(), type: editForm.type === "Unknown" ? null : editForm.type };
 
@@ -137,7 +126,6 @@ export default function DictionaryModal({ word, onClose, onUpdate }: { word: any
     };
 
     const renderCell = (label: string, value: string, field: string, idx: number) => {
-        // Check if this specific cell is the deep search target
         const isHighlighted = highlightValue && value && value.trim().toLowerCase() === highlightValue && !isEditing;
 
         return (
@@ -185,7 +173,8 @@ export default function DictionaryModal({ word, onClose, onUpdate }: { word: any
             <div className="bg-white/90 backdrop-blur-xl w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-[2.5rem] border-2 border-white shadow-[0_20px_60px_rgba(0,0,0,0.1)] relative text-left" onKeyDown={handleKeyDown}>
                 
                 <div className="absolute top-6 right-6 flex gap-2 z-10">
-                    {!isEditing && (
+                    {/* GHOST MODE HIDES THE EDIT BUTTON */}
+                    {!isEditing && !isDemoMode && (
                         <button onClick={() => setIsEditing(true)} className="text-slate-400 hover:text-indigo-500 transition-colors p-2 bg-slate-100 hover:bg-indigo-50 rounded-full" title="Edit Word">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path d="m15 5 4 4" /></svg>
                         </button>

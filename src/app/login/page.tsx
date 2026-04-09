@@ -2,19 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // On mount, check if we saved a username from a previous login
+  // On mount, check if we saved an email from a previous login
   useEffect(() => {
-    const savedUsername = localStorage.getItem("vocab_username");
-    if (savedUsername) {
-      setUsername(savedUsername);
+    const savedEmail = localStorage.getItem("vocab_email");
+    if (savedEmail) {
+      setEmail(savedEmail);
     }
   }, []);
 
@@ -24,23 +25,32 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+      // 1. Initialize Supabase
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      // 2. Ask Supabase to verify your credentials
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      if (res.ok) {
-        // Save the username permanently to the device so they don't have to retype it
-        localStorage.setItem("vocab_username", username);
-        
-        // Redirect to homepage after successful login
-        router.push("/");
-        router.refresh(); // Refresh to update middleware state
-      } else {
-        const data = await res.json();
-        setError(data.error || "Invalid credentials");
+      if (signInError) {
+        setError(signInError.message);
+        setLoading(false);
+        return;
       }
+
+      // 3. Success! Save email permanently so you don't have to retype it
+      localStorage.setItem("vocab_email", email);
+      
+      // 4. Drop the VIP cookie so your Next.js middleware lets you through
+      document.cookie = "srs_auth_token=authenticated; path=/; max-age=31536000";
+      
+      // Redirect to homepage
+      router.push("/");
+      router.refresh();
     } catch (err) {
       setError("An error occurred during login. Please try again.");
     } finally {
@@ -75,19 +85,19 @@ export default function LoginPage() {
           )}
 
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-bold text-slate-600 ml-2" htmlFor="username">
-              Username
+            <label className="text-sm font-bold text-slate-600 ml-2" htmlFor="email">
+              Email
             </label>
             <div className="relative">
               <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
                 className="w-full bg-white border-2 border-pink-100 rounded-2xl py-3 px-4 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-pink-200 focus:border-pink-300 transition-all disabled:opacity-50 shadow-sm"
-                placeholder="Enter your username"
+                placeholder="Enter your email"
               />
             </div>
           </div>
@@ -123,7 +133,7 @@ export default function LoginPage() {
                 </svg>
                 Signing in...
               </>
-            ) : (
+            ) : ( 
               "Sign In"
             )}
           </button>

@@ -2,22 +2,8 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
 import DictionaryModal from "@/components/DictionaryModal";
-import { initDemoDB, mockSupabase } from "@/lib/mockSupabaseClient";
-
-const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
-
-const getSupabase = () => {
-  if (isDemoMode) {
-    initDemoDB();
-    return mockSupabase;
-  }
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-  if (!url || !key) return null;
-  return createClient(url, key);
-};
+import { supabase, isDemoMode } from "@/lib/supabaseClient";
 
 interface ReviewLog {
   score: number;
@@ -147,9 +133,6 @@ export default function ManageVocab() {
   async function fetchVocab() {
     setLoading(true);
     try {
-      const supabase = getSupabase();
-      if (!supabase) return;
-
       const [vocabRes, conjRes, nounRes, adjRes] = await Promise.all([
         supabase.from("vocab").select("*, review_logs(score, created_at)").order("next_review", { ascending: true, nullsFirst: true }),
         supabase.from("conjugations").select("*"),
@@ -173,9 +156,6 @@ export default function ManageVocab() {
 
   async function fetchAllPrompts() {
     try {
-      const supabase = getSupabase();
-      if (!supabase) return;
-
       const { data, error } = await supabase
         .from("app_settings")
         .select("key, value")
@@ -188,7 +168,6 @@ export default function ManageVocab() {
 
       if (data) {
         const mapping: Record<string, string> = {};
-        // The key fix for the implicit any error:
         data.forEach((item: any) => mapping[item.key] = item.value);
         setPromptsDict(mapping);
         setEditedPrompt(mapping["gemini_sentence_prompt"] || "");
@@ -244,6 +223,7 @@ export default function ManageVocab() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isDemoMode) return; // Ghost Mode safeguard
     if (!formData.albanian || !formData.english || isAdding) return;
 
     setIsAdding(true);
@@ -261,14 +241,12 @@ export default function ManageVocab() {
       next_review: new Date().toISOString()
     };
 
-    const supabase = getSupabase();
-    if (!supabase) return alert("Missing Supabase credentials");
-
     const { data, error } = await supabase.from('vocab').insert([newVocab]).select();
 
     if (error) {
       console.error("Failed to insert word:", error);
       alert("Failed to save word.");
+      setIsAdding(false);
       return;
     }
 
@@ -282,15 +260,13 @@ export default function ManageVocab() {
 
   const handleDeleteClick = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isDemoMode) return; // Ghost Mode safeguard
     setDeleteConfirmId(id);
   };
 
   const confirmDelete = async () => {
-    if (!deleteConfirmId) return;
+    if (!deleteConfirmId || isDemoMode) return;
     setIsDeleting(true);
-
-    const supabase = getSupabase();
-    if (!supabase) return;
 
     const { error } = await supabase.from('vocab').delete().eq('id', deleteConfirmId);
 
@@ -320,6 +296,7 @@ export default function ManageVocab() {
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isDemoMode) return; // Ghost Mode safeguard
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -365,8 +342,6 @@ export default function ManageVocab() {
         }
 
         if (batches.length > 0) {
-          const supabase = getSupabase();
-          if (!supabase) return;
           const { error } = await supabase.from('vocab').insert(batches);
           if (error) throw error;
           alert(`Successfully imported ${batches.length} words!`);
@@ -401,6 +376,11 @@ export default function ManageVocab() {
   };
 
   const handleGenerateSentences = async () => {
+    if (isDemoMode) {
+      alert("Ghost Mode: Live AI generation is disabled for guests to save API costs. Imagine perfectly tailored Albanian sentences generating right here! 🚀");
+      return;
+    }
+    
     setIsGenerating(true);
     try {
       const res = await fetch('/api/generate-sentences', { method: 'POST' });
@@ -427,9 +407,8 @@ export default function ManageVocab() {
   };
 
   const handleSavePrompt = async () => {
+    if (isDemoMode) return; // Ghost Mode safeguard
     setIsSavingPrompt(true);
-    const supabase = getSupabase();
-    if (!supabase) return;
 
     const { error } = await supabase
       .from("app_settings")
@@ -553,8 +532,9 @@ export default function ManageVocab() {
       <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-gradient-to-br from-pink-100/40 via-purple-50/20 to-indigo-100/40 z-0 pointer-events-none"></div>
 
       {isDemoMode && (
-        <div className="fixed top-4 left-4 z-[400] bg-indigo-500 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-indigo-400">
-          Demo Mode
+        <div className="fixed top-4 left-4 z-[400] bg-slate-800 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-slate-600 flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+          Ghost Mode: Read Only
         </div>
       )}
 
@@ -567,100 +547,78 @@ export default function ManageVocab() {
             <p className="text-slate-500 font-bold mt-2">Curate your vocabulary and rules.</p>
           </div>
 
-          <div className="flex gap-3 flex-wrap justify-center md:justify-end">
-            <button onClick={() => setIsPromptModalOpen(true)} className="bg-white/80 backdrop-blur-md hover:bg-white text-indigo-500 font-bold p-3 rounded-[1rem] transition-colors flex items-center justify-center shadow-sm active:scale-95 border-2 border-white" title="Data Pipeline Prompt">
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" x2="20" y1="19" y2="19" /></svg>
-            </button>
+          {/* GHOST MODE HIDES THESE BUTTONS */}
+          {!isDemoMode && (
+            <div className="flex gap-3 flex-wrap justify-center md:justify-end">
+              <button onClick={() => setIsPromptModalOpen(true)} className="bg-white/80 backdrop-blur-md hover:bg-white text-indigo-500 font-bold p-3 rounded-[1rem] transition-colors flex items-center justify-center shadow-sm active:scale-95 border-2 border-white" title="Data Pipeline Prompt">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" x2="20" y1="19" y2="19" /></svg>
+              </button>
 
-            <button onClick={handleGenerateSentences} disabled={isGenerating} className="bg-emerald-100/80 backdrop-blur-md hover:bg-emerald-100 text-emerald-600 border-2 border-emerald-200 font-bold py-2 sm:py-3 px-4 sm:px-5 rounded-[1rem] transition-colors flex items-center gap-2 active:scale-95 disabled:opacity-50 shadow-sm text-sm sm:text-base">
-              {isGenerating ? <div className="w-5 h-5 border-2 border-emerald-400 border-t-emerald-600 rounded-full animate-spin"></div> : <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /><path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" /></svg>}
-              <span className="hidden sm:inline">{isGenerating ? "Generating..." : "Generate Sentences"}</span>
-              <span className="inline sm:hidden">Sentences</span>
-            </button>
+              <button onClick={handleGenerateSentences} disabled={isGenerating} className="bg-emerald-100/80 backdrop-blur-md hover:bg-emerald-100 text-emerald-600 border-2 border-emerald-200 font-bold py-2 sm:py-3 px-4 sm:px-5 rounded-[1rem] transition-colors flex items-center gap-2 active:scale-95 disabled:opacity-50 shadow-sm text-sm sm:text-base">
+                {isGenerating ? <div className="w-5 h-5 border-2 border-emerald-400 border-t-emerald-600 rounded-full animate-spin"></div> : <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /><path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" /></svg>}
+                <span className="hidden sm:inline">{isGenerating ? "Generating..." : "Generate Sentences"}</span>
+                <span className="inline sm:hidden">Sentences</span>
+              </button>
 
-            <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleImport} />
-            
-            <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="bg-white/80 backdrop-blur-md hover:bg-white text-slate-600 border-2 border-white font-bold py-2 sm:py-3 px-4 sm:px-5 rounded-[1rem] transition-colors flex items-center gap-2 active:scale-95 disabled:opacity-50 shadow-sm text-sm sm:text-base">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" x2="12" y1="3" y2="15" /></svg>
-              <span className="hidden sm:inline">{isImporting ? "Importing..." : "Import CSV"}</span>
-              <span className="inline sm:hidden">Import</span>
-            </button>
-
-            <button onClick={handleExport} className="bg-indigo-500 hover:bg-indigo-400 text-white font-black py-2 sm:py-3 px-4 sm:px-6 rounded-[1rem] transition-colors flex items-center gap-2 shadow-[0_4px_14px_rgba(99,102,241,0.4)] active:scale-95 text-sm sm:text-base">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>
-              Export
-            </button>
-          </div>
+              <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleImport} />
+              
+              <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="bg-white/80 backdrop-blur-md hover:bg-white text-slate-600 border-2 border-white font-bold py-2 sm:py-3 px-4 sm:px-5 rounded-[1rem] transition-colors flex items-center gap-2 active:scale-95 disabled:opacity-50 shadow-sm text-sm sm:text-base">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" x2="12" y1="3" y2="15" /></svg>
+                <span className="hidden sm:inline">{isImporting ? "Importing..." : "Import CSV"}</span>
+                <span className="inline sm:hidden">Import</span>
+              </button>
+            </div>
+          )}
         </header>
 
-        {/* Add Word Form */}
-        <section className="bg-white/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] border-2 border-white shadow-[0_8px_30px_rgba(0,0,0,0.04)] mb-8 sm:mb-12">
-          <h2 className="text-xl sm:text-2xl font-black mb-6 flex items-center gap-3 text-slate-700">
-            <div className="bg-indigo-100 p-2 rounded-xl text-indigo-500">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
-            </div>
-            Add Single Word
-          </h2>
-          <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-end">
-            
-            <div className="flex flex-col gap-1.5 lg:col-span-1 relative">
-              <label className="text-xs text-slate-400 uppercase font-black tracking-widest">Albanian</label>
-              <input required type="text" value={formData.albanian} onChange={e => setFormData({ ...formData, albanian: e.target.value })} className="bg-slate-50 border-2 border-slate-200 rounded-[1.25rem] px-4 py-3 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner" placeholder="e.g. Bukur" />
-              {/* THE INVISIBLE SEARCH WARNING */}
-              {duplicateMatch && (
-                <div className="absolute top-[calc(100%+4px)] left-2 text-[10px] font-black text-amber-500 z-10 bg-amber-50/90 px-2 py-0.5 rounded-md backdrop-blur-md border border-amber-100 whitespace-nowrap shadow-sm pointer-events-none">
-                  ⚠️ {duplicateMatch}
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-1.5 lg:col-span-1">
-              <label className="text-xs text-slate-400 uppercase font-black tracking-widest">English</label>
-              <input required type="text" value={formData.english} onChange={e => setFormData({ ...formData, english: e.target.value })} className="bg-slate-50 border-2 border-slate-200 rounded-[1.25rem] px-4 py-3 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner" placeholder="e.g. Beautiful" />
-            </div>
-
-            {/* CUSTOM FROSTED GLASS DROPDOWN */}
-            <div className="flex flex-col gap-1.5 relative">
-              <label className="text-xs text-slate-400 uppercase font-black tracking-widest">Type</label>
-              <div className="relative">
-                <button
-                  ref={typeDropdownButtonRef}
-                  type="button"
-                  onClick={handleOpenTypeDropdown}
-                  className="w-full bg-slate-50 border-2 border-slate-200 rounded-[1.25rem] px-4 py-3 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner text-left flex justify-between items-center"
-                >
-                  <span className="truncate">{formData.type}</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`text-slate-400 transition-transform duration-200 ${isTypeDropdownOpen ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
-                </button>
+        {/* GHOST MODE HIDES THE ADD WORD FORM */}
+        {!isDemoMode && (
+          <section className="bg-white/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] border-2 border-white shadow-[0_8px_30px_rgba(0,0,0,0.04)] mb-8 sm:mb-12">
+            <h2 className="text-xl sm:text-2xl font-black mb-6 flex items-center gap-3 text-slate-700">
+              <div className="bg-indigo-100 p-2 rounded-xl text-indigo-500">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
               </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-slate-400 uppercase font-black tracking-widest">Priority</label>
-              <input type="number" min="1" max="10" value={formData.usefulness} onChange={e => setFormData({ ...formData, usefulness: e.target.value })} className="bg-slate-50 border-2 border-slate-200 rounded-[1.25rem] px-4 py-3 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner" placeholder="1-10" />
-            </div>
-            <button type="submit" disabled={isAdding} className="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-black py-3 sm:py-3.5 rounded-[1.25rem] transition-colors shadow-md active:scale-95 text-lg disabled:opacity-50 flex items-center justify-center gap-2">
-              {isAdding ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                  Adding...
-                </>
-              ) : "Add to Queue"}
-            </button>
-          </form>
-        </section>
+              Add Single Word
+            </h2>
+            <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-end">
+              <div className="flex flex-col gap-1.5 lg:col-span-1 relative">
+                <label className="text-xs text-slate-400 uppercase font-black tracking-widest">Albanian</label>
+                <input required type="text" value={formData.albanian} onChange={e => setFormData({ ...formData, albanian: e.target.value })} className="bg-slate-50 border-2 border-slate-200 rounded-[1.25rem] px-4 py-3 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner" placeholder="e.g. Bukur" />
+                {duplicateMatch && (
+                  <div className="absolute top-[calc(100%+4px)] left-2 text-[10px] font-black text-amber-500 z-10 bg-amber-50/90 px-2 py-0.5 rounded-md backdrop-blur-md border border-amber-100 whitespace-nowrap shadow-sm pointer-events-none">
+                    ⚠️ {duplicateMatch}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5 lg:col-span-1">
+                <label className="text-xs text-slate-400 uppercase font-black tracking-widest">English</label>
+                <input required type="text" value={formData.english} onChange={e => setFormData({ ...formData, english: e.target.value })} className="bg-slate-50 border-2 border-slate-200 rounded-[1.25rem] px-4 py-3 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner" placeholder="e.g. Beautiful" />
+              </div>
+              <div className="flex flex-col gap-1.5 relative">
+                <label className="text-xs text-slate-400 uppercase font-black tracking-widest">Type</label>
+                <div className="relative">
+                  <button ref={typeDropdownButtonRef} type="button" onClick={handleOpenTypeDropdown} className="w-full bg-slate-50 border-2 border-slate-200 rounded-[1.25rem] px-4 py-3 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner text-left flex justify-between items-center">
+                    <span className="truncate">{formData.type}</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`text-slate-400 transition-transform duration-200 ${isTypeDropdownOpen ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-slate-400 uppercase font-black tracking-widest">Priority</label>
+                <input type="number" min="1" max="10" value={formData.usefulness} onChange={e => setFormData({ ...formData, usefulness: e.target.value })} className="bg-slate-50 border-2 border-slate-200 rounded-[1.25rem] px-4 py-3 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner" placeholder="1-10" />
+              </div>
+              <button type="submit" disabled={isAdding} className="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-black py-3 sm:py-3.5 rounded-[1.25rem] transition-colors shadow-md active:scale-95 text-lg disabled:opacity-50 flex items-center justify-center gap-2">
+                {isAdding ? <><div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>Adding...</> : "Add"}
+              </button>
+            </form>
+          </section>
+        )}
 
         {/* Search Bar */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
           <div className="relative w-full md:max-w-md">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
-            <input
-              type="text"
-              placeholder="Search vocabulary & conjugations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/80 backdrop-blur-md border-2 border-white rounded-[1.5rem] pl-12 pr-4 py-4 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white shadow-sm transition-all"
-            />
+            <input type="text" placeholder="Search vocabulary & conjugations..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white/80 backdrop-blur-md border-2 border-white rounded-[1.5rem] pl-12 pr-4 py-4 text-base font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white shadow-sm transition-all" />
           </div>
           <p className="text-sm font-black text-slate-400 bg-white/60 px-4 py-2 rounded-full border border-white">
             Showing <span className="text-indigo-500">{processedVocab.length}</span> of {vocabList.length}
@@ -678,12 +636,13 @@ export default function ManageVocab() {
               {searchQuery ? (
                 <>
                   <p>No words match "{searchQuery}".</p>
-                  <button onClick={handleSearchToAdd} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 px-5 py-2.5 rounded-xl text-sm transition-all active:scale-95 flex items-center gap-2 font-black mt-2">
-                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg> 
-                     Add "{searchQuery}" to Library
-                  </button>
+                  {!isDemoMode && (
+                    <button onClick={handleSearchToAdd} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 px-5 py-2.5 rounded-xl text-sm transition-all active:scale-95 flex items-center gap-2 font-black mt-2">
+                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg> Add "{searchQuery}"
+                    </button>
+                  )}
                 </>
-              ) : "No vocabulary found. Add your first word or import a CSV!"}
+              ) : "No vocabulary found."}
             </div>
           ) : (
             processedVocab.map(item => (
@@ -691,38 +650,22 @@ export default function ManageVocab() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">{item.albanian}</div>
-                    {/* SUBTLE MATCH INDICATOR */}
-                    {item.matchReason && (
-                      <div className="text-xs font-bold text-indigo-400 mt-0.5">{item.matchReason}</div>
-                    )}
+                    {item.matchReason && <div className="text-xs font-bold text-indigo-400 mt-0.5">{item.matchReason}</div>}
                     <div className="text-base sm:text-lg font-bold text-slate-500 mt-1">{item.english}</div>
                   </div>
-                  <button onClick={(e) => handleDeleteClick(item.id, e)} className="text-slate-300 hover:text-rose-500 transition-colors p-2.5 rounded-xl hover:bg-rose-50 bg-white" title="Delete word">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
-                  </button>
+                  {!isDemoMode && (
+                    <button onClick={(e) => handleDeleteClick(item.id, e)} className="text-slate-300 hover:text-rose-500 transition-colors p-2.5 rounded-xl hover:bg-rose-50 bg-white" title="Delete word">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
+                    </button>
+                  )}
                 </div>
-
                 <div className="flex flex-wrap items-center gap-2 mt-4">
                   <span className="bg-slate-100 px-3 py-1.5 rounded-lg text-xs font-black text-slate-500 uppercase tracking-wider">{item.type || "Unknown"}</span>
-                  <span className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm ${
-                    item.confidence === "Mastered" ? "bg-emerald-50 text-emerald-600 border border-emerald-200" :
-                    item.confidence === "Almost" ? "bg-amber-50 text-amber-600 border border-amber-200" :
-                    item.confidence === "Improvement" ? "bg-orange-50 text-orange-600 border border-orange-200" :
-                    "bg-indigo-50 text-indigo-600 border border-indigo-200"
-                  }`}>
-                    {item.confidence || "New"}
-                  </span>
+                  <span className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm ${item.confidence === "Mastered" ? "bg-emerald-50 text-emerald-600 border border-emerald-200" : item.confidence === "Almost" ? "bg-amber-50 text-amber-600 border border-amber-200" : item.confidence === "Improvement" ? "bg-orange-50 text-orange-600 border border-orange-200" : "bg-indigo-50 text-indigo-600 border border-indigo-200"}`}>{item.confidence || "New"}</span>
                 </div>
-
                 <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t-2 border-slate-100">
-                  <div className="text-sm font-bold text-slate-500 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    {formatDue(item.next_review)}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-slate-400 font-black">{Math.round((item.mastery_score || 0) * 100)}%</span>
-                    <MiniTrend logs={item.review_logs} />
-                  </div>
+                  <div className="text-sm font-bold text-slate-500 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>{formatDue(item.next_review)}</div>
+                  <div className="flex items-center gap-3"><span className="text-sm text-slate-400 font-black">{Math.round((item.mastery_score || 0) * 100)}%</span><MiniTrend logs={item.review_logs} /></div>
                 </div>
               </div>
             ))
@@ -735,91 +678,48 @@ export default function ManageVocab() {
             <table className="w-full text-left border-collapse min-w-[800px]">
               <thead>
                 <tr className="bg-slate-50/80 border-b-2 border-slate-200 text-xs text-slate-400 uppercase tracking-widest">
-                  <th className="px-6 py-5 font-black cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("albanian")}>
-                    Albanian <SortIcon columnKey="albanian" />
-                  </th>
-                  <th className="px-6 py-5 font-black cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("english")}>
-                    English <SortIcon columnKey="english" />
-                  </th>
-                  <th className="px-6 py-5 font-black cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("type")}>
-                    Type <SortIcon columnKey="type" />
-                  </th>
-                  <th className="px-6 py-5 font-black cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("next_review")}>
-                    Next Review <SortIcon columnKey="next_review" />
-                  </th>
-                  <th className="px-6 py-5 font-black cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("confidence")}>
-                    Status <SortIcon columnKey="confidence" />
-                  </th>
-                  <th className="px-6 py-5 font-black cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("mastery_score")}>
-                    Trend <SortIcon columnKey="mastery_score" />
-                  </th>
-                  <th className="px-6 py-5 font-black text-right whitespace-nowrap">Actions</th>
+                  <th className="px-6 py-5 font-black cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("albanian")}>Albanian <SortIcon columnKey="albanian" /></th>
+                  <th className="px-6 py-5 font-black cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("english")}>English <SortIcon columnKey="english" /></th>
+                  <th className="px-6 py-5 font-black cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("type")}>Type <SortIcon columnKey="type" /></th>
+                  <th className="px-6 py-5 font-black cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("next_review")}>Next Review <SortIcon columnKey="next_review" /></th>
+                  <th className="px-6 py-5 font-black cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("confidence")}>Status <SortIcon columnKey="confidence" /></th>
+                  <th className="px-6 py-5 font-black cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort("mastery_score")}>Trend <SortIcon columnKey="mastery_score" /></th>
+                  {!isDemoMode && <th className="px-6 py-5 font-black text-right whitespace-nowrap">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y-2 divide-slate-100 text-sm">
-                {loading && (
-                  <tr>
-                    <td colSpan={7} className="p-12 text-center text-slate-400 font-bold bg-white/50">
-                      <div className="w-8 h-8 border-4 border-slate-200 border-t-indigo-500 rounded-full animate-spin mx-auto mb-3"></div>
-                      Syncing database...
-                    </td>
-                  </tr>
-                )}
+                {loading && (<tr><td colSpan={7} className="p-12 text-center text-slate-400 font-bold bg-white/50"><div className="w-8 h-8 border-4 border-slate-200 border-t-indigo-500 rounded-full animate-spin mx-auto mb-3"></div>Syncing database...</td></tr>)}
                 {!loading && processedVocab.length === 0 && (
                   <tr>
                     <td colSpan={7} className="p-16 text-center text-slate-500 font-bold text-lg bg-white/50">
                       {searchQuery ? (
                         <div className="flex flex-col items-center justify-center gap-4">
                           <p>No words match "{searchQuery}".</p>
-                          <button onClick={handleSearchToAdd} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 px-6 py-3 rounded-xl text-sm transition-all active:scale-95 flex items-center gap-2 font-black">
-                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg> 
-                             Add "{searchQuery}" to Library
-                          </button>
+                          {!isDemoMode && (
+                            <button onClick={handleSearchToAdd} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 px-6 py-3 rounded-xl text-sm transition-all active:scale-95 flex items-center gap-2 font-black">
+                               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg> Add "{searchQuery}"
+                            </button>
+                          )}
                         </div>
-                      ) : "No vocabulary found. Add your first word!"}
+                      ) : "No vocabulary found."}
                     </td>
                   </tr>
                 )}
                 {!loading && processedVocab.map(item => (
                   <tr key={item.id} onClick={() => setSelectedWord(item)} className="hover:bg-slate-50/80 transition-colors group cursor-pointer bg-white/40">
-                    <td className="px-6 py-5 font-black text-slate-800 text-base group-hover:text-indigo-600 transition-colors">
-                      {item.albanian}
-                      {/* SUBTLE MATCH INDICATOR */}
-                      {item.matchReason && (
-                        <span className="block text-xs font-bold text-indigo-400 mt-1">{item.matchReason}</span>
-                      )}
-                    </td>
+                    <td className="px-6 py-5 font-black text-slate-800 text-base group-hover:text-indigo-600 transition-colors">{item.albanian}{item.matchReason && <span className="block text-xs font-bold text-indigo-400 mt-1">{item.matchReason}</span>}</td>
                     <td className="px-6 py-5 font-bold text-slate-500 text-base">{item.english}</td>
-                    <td className="px-6 py-5">
-                      <span className="bg-slate-100 px-3 py-1.5 rounded-lg text-xs font-black text-slate-500 uppercase tracking-wider">
-                        {item.type || "Unknown"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-5 text-slate-600 font-bold whitespace-nowrap">
-                      {formatDue(item.next_review)}
-                    </td>
-                    <td className="px-6 py-5">
-                      <span className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm
-                        ${item.confidence === 'Mastered' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
-                          item.confidence === 'Almost' ? 'bg-amber-50 text-amber-600 border border-amber-200' :
-                          item.confidence === 'Improvement' ? 'bg-orange-50 text-orange-600 border border-orange-200' :
-                          'bg-indigo-50 text-indigo-600 border border-indigo-200'
-                        }
-                       `}>
-                        {item.confidence || "New"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm text-slate-400 font-black w-8">{Math.round((item.mastery_score || 0) * 100)}%</span>
-                        <MiniTrend logs={item.review_logs} />
-                      </div>
-                    </td>
-                    <td className="px-6 py-5 text-right">
-                      <button onClick={(e) => handleDeleteClick(item.id, e)} className="text-slate-300 hover:text-rose-500 transition-colors p-2.5 rounded-xl hover:bg-rose-50 opacity-0 group-hover:opacity-100 focus:opacity-100 bg-white" title="Delete word">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
-                      </button>
-                    </td>
+                    <td className="px-6 py-5"><span className="bg-slate-100 px-3 py-1.5 rounded-lg text-xs font-black text-slate-500 uppercase tracking-wider">{item.type || "Unknown"}</span></td>
+                    <td className="px-6 py-5 text-slate-600 font-bold whitespace-nowrap">{formatDue(item.next_review)}</td>
+                    <td className="px-6 py-5"><span className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm ${item.confidence === 'Mastered' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : item.confidence === 'Almost' ? 'bg-amber-50 text-amber-600 border border-amber-200' : item.confidence === 'Improvement' ? 'bg-orange-50 text-orange-600 border border-orange-200' : 'bg-indigo-50 text-indigo-600 border border-indigo-200'}`}>{item.confidence || "New"}</span></td>
+                    <td className="px-6 py-5"><div className="flex items-center gap-3"><span className="text-sm text-slate-400 font-black w-8">{Math.round((item.mastery_score || 0) * 100)}%</span><MiniTrend logs={item.review_logs} /></div></td>
+                    {!isDemoMode && (
+                      <td className="px-6 py-5 text-right">
+                        <button onClick={(e) => handleDeleteClick(item.id, e)} className="text-slate-300 hover:text-rose-500 transition-colors p-2.5 rounded-xl hover:bg-rose-50 opacity-0 group-hover:opacity-100 focus:opacity-100 bg-white" title="Delete word">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -828,22 +728,12 @@ export default function ManageVocab() {
         </div>
       </div>
 
-      {/* TYPE DROPDOWN */}
       {isTypeDropdownOpen && dropdownRect && (
         <>
           <div className="fixed inset-0 z-[200]" onClick={() => setIsTypeDropdownOpen(false)} />
-          <div
-            ref={typeDropdownListRef}
-            className="fixed z-[201] bg-white/90 backdrop-blur-xl border-2 border-white rounded-[1.5rem] shadow-[0_8px_30px_rgba(0,0,0,0.1)] overflow-hidden py-2 flex flex-col max-h-64 overflow-y-auto"
-            style={{ top: dropdownRect.top, left: dropdownRect.left, width: dropdownRect.width }}
-          >
+          <div ref={typeDropdownListRef} className="fixed z-[201] bg-white/90 backdrop-blur-xl border-2 border-white rounded-[1.5rem] shadow-[0_8px_30px_rgba(0,0,0,0.1)] overflow-hidden py-2 flex flex-col max-h-64 overflow-y-auto" style={{ top: dropdownRect.top, left: dropdownRect.left, width: dropdownRect.width }}>
             {mockCategories.map(cat => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => { setFormData(prev => ({ ...prev, type: cat })); setIsTypeDropdownOpen(false); }}
-                className={`px-5 py-3 text-left text-sm transition-colors ${formData.type === cat ? 'bg-indigo-50/80 text-indigo-600 font-black' : 'text-slate-600 font-bold hover:bg-slate-50 hover:text-indigo-500'}`}
-              >
+              <button key={cat} type="button" onClick={() => { setFormData(prev => ({ ...prev, type: cat })); setIsTypeDropdownOpen(false); }} className={`px-5 py-3 text-left text-sm transition-colors ${formData.type === cat ? 'bg-indigo-50/80 text-indigo-600 font-black' : 'text-slate-600 font-bold hover:bg-slate-50 hover:text-indigo-500'}`}>
                 {cat}
               </button>
             ))}
@@ -853,8 +743,7 @@ export default function ManageVocab() {
 
       <DictionaryModal word={selectedWord} onClose={() => setSelectedWord(null)} onUpdate={(updatedWord) => { setVocabList(prev => prev.map(w => w.id === updatedWord.id ? { ...w, ...updatedWord } : w)); setSelectedWord({ ...selectedWord, ...updatedWord } as VocabType); }} />
 
-      {/* Prompt Modal Overlay */}
-      {isPromptModalOpen && (
+      {isPromptModalOpen && !isDemoMode && (
         <div className="fixed inset-0 z-[150] bg-slate-900/30 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6" onClick={() => !isEditingPrompt && setIsPromptModalOpen(false)}>
           <div className="bg-white/90 backdrop-blur-xl border-2 border-white rounded-[2.5rem] w-full max-w-4xl max-h-[90vh] flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.1)]" onClick={e => e.stopPropagation()}>
             <header className="flex justify-between items-center p-6 sm:p-8 border-b-2 border-slate-100">
@@ -917,7 +806,6 @@ export default function ManageVocab() {
         </div>
       )}
 
-      {/* ADDING TOAST */}
       {isAdding && (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[200] bg-zinc-900/90 backdrop-blur-md text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-in fade-in slide-in-from-bottom-8 duration-300">
           <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
@@ -925,8 +813,7 @@ export default function ManageVocab() {
         </div>
       )}
 
-      {/* DELETE CONFIRMATION MODAL */}
-      {deleteConfirmId && (
+      {deleteConfirmId && !isDemoMode && (
         <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => !isDeleting && setDeleteConfirmId(null)}>
           <div className="bg-white/90 backdrop-blur-xl border-2 border-white rounded-[2rem] p-6 sm:p-8 max-w-sm w-full shadow-[0_20px_60px_rgba(0,0,0,0.15)] flex flex-col items-center text-center animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="w-16 h-16 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center mb-6 shadow-inner">

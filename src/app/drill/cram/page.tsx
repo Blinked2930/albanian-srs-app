@@ -4,22 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { evaluateAnswer } from "@/lib/logic";
-import { createClient } from "@supabase/supabase-js";
 import DictionaryModal from "@/components/DictionaryModal";
-import { initDemoDB, mockSupabase } from "@/lib/mockSupabaseClient";
-
-const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
-
-const getSupabase = () => {
-  if (isDemoMode) {
-    initDemoDB();
-    return mockSupabase;
-  }
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-  if (!url || !key) return null;
-  return createClient(url, key);
-};
+import { supabase, isDemoMode } from "@/lib/supabaseClient";
 
 export default function CramDrill() {
   const router = useRouter();
@@ -78,9 +64,6 @@ export default function CramDrill() {
       
       const ids = JSON.parse(stored);
       if (ids.length === 0) { router.push('/'); return; }
-
-      const supabase = getSupabase();
-      if (!supabase) return;
 
       const { data, error } = await supabase.from("vocab").select("*").in('id', ids);
       if (error || !data) { router.push('/'); return; }
@@ -153,6 +136,11 @@ export default function CramDrill() {
 
   const handleGenerateMnemonic = async () => {
     if (!currentPrompt) return;
+    if (isDemoMode) {
+      setMnemonic(`✨ **Ghost Mode:**\n\nAI generation is turned off for guests. In the real app, Gemini generates custom mnemonic stories here!`);
+      return;
+    }
+    
     setIsGeneratingMnemonic(true); setMnemonic(null);
     try {
       const res = await fetch('/api/generate-mnemonic', {
@@ -173,11 +161,13 @@ export default function CramDrill() {
     setWordProgress(updatedProgress);
     wordProgressRef.current = updatedProgress;
 
+    // GHOST MODE: Do not persist changes to the database
+    if (isDemoMode) return;
+
     if (!prompt.next_review) {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      const supabase = getSupabase();
-      if (supabase) await supabase.from('vocab').update({ next_review: tomorrow.toISOString() }).eq('id', prompt.id);
+      await supabase.from('vocab').update({ next_review: tomorrow.toISOString() }).eq('id', prompt.id);
       
       const idx = dbVocabRef.current.findIndex((w: any) => w.id === prompt.id);
       if (idx !== -1) dbVocabRef.current[idx].next_review = tomorrow.toISOString();
@@ -235,8 +225,9 @@ export default function CramDrill() {
     <main className="min-h-[100dvh] bg-[#fafafa] flex flex-col items-center justify-start sm:justify-center p-4 pt-8 sm:p-8 pb-[calc(env(safe-area-inset-bottom)+5rem)] select-none">
       
       {isDemoMode && (
-        <div className="fixed top-4 left-4 z-[400] bg-indigo-500 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-indigo-400">
-          Demo Mode
+        <div className="fixed top-4 left-4 z-[400] bg-slate-800 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-slate-600 flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+          Ghost Mode: Read Only
         </div>
       )}
 

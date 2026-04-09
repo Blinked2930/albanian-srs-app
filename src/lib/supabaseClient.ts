@@ -1,5 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
+// The VIP switch for Ghost Mode
+export const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
