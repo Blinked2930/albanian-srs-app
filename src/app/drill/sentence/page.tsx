@@ -33,6 +33,9 @@ export default function SentenceDrill() {
   const actionLock = useRef(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showTarget, setShowTarget] = useState(false);
+  
+  // NEW: Ghost Mode Modal State
+  const [showGhostModal, setShowGhostModal] = useState(false);
 
   // --- PERSISTENCE: Save State ---
   useEffect(() => {
@@ -98,7 +101,7 @@ export default function SentenceDrill() {
 
   const handleGenerateSentences = async () => {
     if (isDemoMode) {
-      alert("Ghost Mode: Live AI generation is disabled for guests to save API costs. Imagine perfectly tailored Albanian sentences generating right here! 🚀");
+      setShowGhostModal(true);
       return;
     }
 
@@ -115,17 +118,17 @@ export default function SentenceDrill() {
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && feedback && currentPrompt && feedback.promptId === currentPrompt.promptId && !modalWord) {
+      if (e.key === 'Enter' && feedback && currentPrompt && feedback.promptId === currentPrompt.promptId && !modalWord && !showGhostModal) {
         e.preventDefault(); generatePrompt();
       }
     };
     if (phase === "drill") window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [feedback, currentPrompt, phase, modalWord]);
+  }, [feedback, currentPrompt, phase, modalWord, showGhostModal]);
 
   useEffect(() => {
-    if (currentPrompt && !feedback && inputRef.current && !modalWord) { inputRef.current.focus(); }
-  }, [currentPrompt, feedback, modalWord]);
+    if (currentPrompt && !feedback && inputRef.current && !modalWord && !showGhostModal) { inputRef.current.focus(); }
+  }, [currentPrompt, feedback, modalWord, showGhostModal]);
 
   function startDrill() {
     setPhase("drill"); setCaughtUp(false); setShowTarget(false); pickAndSetPrompt(dbVocabRef.current);
@@ -377,6 +380,24 @@ export default function SentenceDrill() {
             </div>
           </div>
         </div>
+
+        {/* GHOST MODE MODAL */}
+        {showGhostModal && (
+          <div className="fixed inset-0 z-[500] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowGhostModal(false)}>
+            <div className="bg-white rounded-[2rem] p-6 sm:p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95 flex flex-col items-center text-center" onClick={e => e.stopPropagation()}>
+              <div className="w-16 h-16 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-inner text-3xl">
+                👻
+              </div>
+              <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Ghost Mode Active</h3>
+              <p className="text-slate-500 font-bold mb-8">
+                Live AI generation is disabled for guests to save API costs. Imagine perfectly tailored Albanian sentences generating right here! 🚀
+              </p>
+              <button onClick={() => setShowGhostModal(false)} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-black py-3.5 rounded-xl transition-colors active:scale-95">
+                Got it!
+              </button>
+            </div>
+          </div>
+        )}
       </main>
     );
   }
