@@ -139,15 +139,27 @@ export default function ImmersionReader() {
   const confirmDeleteStory = async () => {
     if (!storyToDelete) return;
     setIsDeletingStory(true);
+    
     try {
-      const { error } = await supabase.from('stories').delete().eq('id', storyToDelete.id);
+      const { error } = await supabase
+        .from('stories')
+        .delete()
+        .eq('id', storyToDelete.id);
+
       if (error) throw error;
       
+      // 1. Remove it from the local list
       setStories(prev => prev.filter(s => s.id !== storyToDelete.id));
-      showToast("Story deleted.", "🗑️");
-    } catch (err) {
+      
+      // 2. If you were currently reading this story, kick back to library
+      if (currentStory?.id === storyToDelete.id) {
+        setCurrentStory(null);
+      }
+
+      showToast("Story deleted forever. 🫡", "🗑️");
+    } catch (err: any) {
       console.error("Error deleting story:", err);
-      showToast("Failed to delete story.", "❌");
+      showToast(err.message || "Failed to delete story.", "❌");
     } finally {
       setIsDeletingStory(false);
       setStoryToDelete(null);
