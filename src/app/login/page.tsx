@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -25,12 +25,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // 1. Initialize Supabase
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
-      // 2. Ask Supabase to verify your credentials
+      // 1. Ask our master Supabase client to verify your credentials
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -42,13 +37,13 @@ export default function LoginPage() {
         return;
       }
 
-      // 3. Success! Save email permanently so you don't have to retype it
+      // 2. Success! Save email permanently so you don't have to retype it
       localStorage.setItem("vocab_email", email);
       
-      // 4. Drop the VIP cookie so your Next.js middleware lets you through
+      // 3. Drop the VIP cookie so your Next.js middleware lets you through
       document.cookie = "srs_auth_token=authenticated; path=/; max-age=31536000";
       
-      // Redirect to homepage
+      // 4. Redirect to homepage
       router.push("/");
       router.refresh();
     } catch (err) {
