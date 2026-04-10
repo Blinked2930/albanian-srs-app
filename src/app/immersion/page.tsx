@@ -136,17 +136,23 @@ export default function ImmersionReader() {
     setStoryToDelete({ id, title });
   };
 
+  // 🌟 UPDATED: Secure API Delete Route
   const confirmDeleteStory = async () => {
     if (!storyToDelete) return;
     setIsDeletingStory(true);
     
     try {
-      const { error } = await supabase
-        .from('stories')
-        .delete()
-        .eq('id', storyToDelete.id);
+      // Hit our secure API route instead of the direct database
+      const res = await fetch('/api/delete-story', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: storyToDelete.id })
+      });
 
-      if (error) throw error;
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to delete story");
+      }
       
       // 1. Remove it from the local list
       setStories(prev => prev.filter(s => s.id !== storyToDelete.id));
@@ -156,7 +162,7 @@ export default function ImmersionReader() {
         setCurrentStory(null);
       }
 
-      showToast("Story deleted forever. 🫡", "🗑️");
+      showToast("Story deleted.", "🗑️");
     } catch (err: any) {
       console.error("Error deleting story:", err);
       showToast(err.message || "Failed to delete story.", "❌");

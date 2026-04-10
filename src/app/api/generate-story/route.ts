@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     `;
 
     // Using the incredibly stable, 1M token limit Gemini 2.5 Flash
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite-preview" });
     const result = await model.generateContent(prompt);
     const response = await result.response;
     let text = response.text();
