@@ -232,6 +232,19 @@ export default function ImmersionReader() {
       return;
     }
 
+    // 1.5 Check Fuzzy Phrase Match (e.g., clicking "vogël" matches "e vogël")
+    // Only do this for words > 2 chars to avoid randomly matching "e" or "të" to the first phrase containing them
+    if (cleanWord.length >= 2) {
+      const phraseMatch = Object.values(vocabMap).find(v => {
+        const target = v.albanian.toLowerCase();
+        return target.includes(' ') && target.split(' ').includes(cleanWord);
+      });
+      if (phraseMatch) {
+        setModalWord(phraseMatch);
+        return;
+      }
+    }
+
     // 2. Local Deep Search (Bypass AI entirely if it's a known conjugation)
     let deepMatchParentId = null;
     let matchReasonStr = null;
