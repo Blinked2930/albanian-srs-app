@@ -15,7 +15,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Azure credentials missing' }, { status: 500 });
     }
 
-    // Microsoft's Speech Synthesis Markup Language (SSML)
     const ssml = `
       <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="sq-AL">
         <voice name="sq-AL-IlirNeural">
@@ -37,7 +36,11 @@ export async function POST(req: Request) {
       body: ssml,
     });
 
+    // Explicitly check for quota limits from Azure (429 or 403)
     if (!response.ok) {
+      if (response.status === 429 || response.status === 403) {
+        return NextResponse.json({ error: 'QUOTA_EXCEEDED' }, { status: 429 });
+      }
       throw new Error(`Azure TTS returned ${response.status}`);
     }
 

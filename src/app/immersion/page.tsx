@@ -16,6 +16,8 @@ interface Story {
   created_at: string;
 }
 
+type AudioState = 'idle' | 'loading' | 'playing' | 'paused';
+
 export default function ImmersionReader() {
   useTimeTracker("immersion");
 
@@ -23,7 +25,6 @@ export default function ImmersionReader() {
   const [currentStory, setCurrentStory] = useState<Story | null>(null);
   const [vocabMap, setVocabMap] = useState<Record<string, any>>({});
   
-  // Deep Search States
   const [allConjugations, setAllConjugations] = useState<any[]>([]);
   const [allNouns, setAllNouns] = useState<any[]>([]);
   const [allAdjectives, setAllAdjectives] = useState<any[]>([]);
@@ -31,22 +32,19 @@ export default function ImmersionReader() {
   const [loading, setLoading] = useState(true);
   const [isGeneratingStory, setIsGeneratingStory] = useState(false);
 
-  // Delete Story States
   const [storyToDelete, setStoryToDelete] = useState<{ id: string; title: string } | null>(null);
   const [isDeletingStory, setIsDeletingStory] = useState(false);
 
-  // Interaction States
   const [modalWord, setModalWord] = useState<any | null>(null);
   const [toast, setToast] = useState<{ message: string, emoji: string } | null>(null);
 
-  // Floating Tooltip States
   const [selectionText, setSelectionText] = useState("");
   const [tooltipPos, setTooltipPos] = useState<{ x: number, y: number } | null>(null);
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isExplaining, setIsExplaining] = useState(false);
 
-  // --- Azure Audio States & Refs ---
-  const [isSpeakingStory, setIsSpeakingStory] = useState(false);
+  // --- NEW: Advanced Audio States & Refs ---
+  const [audioState, setAudioState] = useState<AudioState>('idle');
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const readerRef = useRef<HTMLDivElement>(null);
@@ -66,12 +64,11 @@ export default function ImmersionReader() {
     fetchData();
   }, []);
 
-  // --- STATE MEMORY: Save active story and scroll position ---
   const handleSetCurrentStory = (story: Story | null) => {
     setCurrentStory(story);
     if (audioRef.current) {
       audioRef.current.pause();
-      setIsSpeakingStory(false);
+      setAudioState('idle');
     }
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     
@@ -99,7 +96,6 @@ export default function ImmersionReader() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [currentStory]);
 
-  // Listen for text selection to show the floating tooltip
   useEffect(() => {
     const handleSelection = () => {
       const selection = window.getSelection();
@@ -131,7 +127,7 @@ export default function ImmersionReader() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // --- SMART TEXT TO SPEECH (Azure for you, Browser for guests) ---
+  // --- SMART TEXT TO SPEECH (Tooltips) ---
   const speakText = async (text: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     
@@ -149,9 +145,7 @@ export default function ImmersionReader() {
     }
 
     try {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
+      if (audioRef.current) audioRef.current.pause();
 
       const res = await fetch('/api/tts', {
         method: 'POST',
@@ -159,7 +153,13 @@ export default function ImmersionReader() {
         body: JSON.stringify({ text })
       });
 
-      if (!res.ok) throw new Error('Failed to fetch audio');
+      if (!res.ok) {
+        if (res.status === 429) {
+          showToast("Azure audio quota reached for this month!", "🛑");
+          return;
+        }
+        throw new Error('Failed to fetch audio');
+      }
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -172,35 +172,37 @@ export default function ImmersionReader() {
     }
   };
 
-  const toggleStoryAudio = async () => {
+  // --- ADVANCED AUDIO CONTROLS (Story Playback) ---
+  const playStoryAudio = async () => {
     if (isDemoMode) {
       if (!('speechSynthesis' in window)) {
         showToast("Audio not supported on this browser.", "🔇");
         return;
       }
-      if (isSpeakingStory) {
-        window.speechSynthesis.cancel();
-        setIsSpeakingStory(false);
+      if (audioState === 'paused') {
+        window.speechSynthesis.resume();
+        setAudioState('playing');
       } else if (currentStory) {
+        window.speechSynthesis.cancel();
         const fullText = `${currentStory.title_albanian}. ${currentStory.content_albanian.replace(/\*/g, '')}`;
         const utterance = new SpeechSynthesisUtterance(fullText);
         utterance.lang = 'sq-AL';
         utterance.rate = 0.85;
-        utterance.onend = () => setIsSpeakingStory(false);
+        utterance.onend = () => setAudioState('idle');
         window.speechSynthesis.speak(utterance);
-        setIsSpeakingStory(true);
+        setAudioState('playing');
       }
       return;
     }
 
-    if (isSpeakingStory && audioRef.current) {
-      audioRef.current.pause();
-      setIsSpeakingStory(false);
+    if (audioState === 'paused' && audioRef.current) {
+      audioRef.current.play();
+      setAudioState('playing');
       return;
     } 
     
     if (currentStory) {
-      setIsSpeakingStory(true);
+      setAudioState('loading');
       try {
         const fullText = `${currentStory.title_albanian}. ${currentStory.content_albanian.replace(/\*/g, '')}`;
         
@@ -210,22 +212,45 @@ export default function ImmersionReader() {
           body: JSON.stringify({ text: fullText })
         });
 
-        if (!res.ok) throw new Error('Failed to fetch audio');
+        if (!res.ok) {
+          if (res.status === 429) {
+            showToast("Azure audio quota reached for this month!", "🛑");
+            setAudioState('idle');
+            return;
+          }
+          throw new Error('Failed to fetch audio');
+        }
 
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         
         if (audioRef.current) audioRef.current.pause();
         audioRef.current = new Audio(url);
-        audioRef.current.onended = () => setIsSpeakingStory(false);
+        audioRef.current.onended = () => setAudioState('idle');
         audioRef.current.play();
+        setAudioState('playing');
         
       } catch (error) {
         console.error("Audio playback error:", error);
-        setIsSpeakingStory(false);
+        setAudioState('idle');
         showToast("Failed to load story audio.", "🔇");
       }
     }
+  };
+
+  const pauseStoryAudio = () => {
+    if (audioRef.current) audioRef.current.pause();
+    if (isDemoMode && 'speechSynthesis' in window) window.speechSynthesis.pause();
+    setAudioState('paused');
+  };
+
+  const stopStoryAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    if (isDemoMode && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+    setAudioState('idle');
   };
 
   async function fetchData() {
@@ -638,22 +663,29 @@ export default function ImmersionReader() {
                  Back
                </button>
                
-               <button 
-                 onClick={toggleStoryAudio} 
-                 className={`inline-flex items-center gap-2 font-bold text-sm px-4 py-2 rounded-full border shadow-sm transition-colors ${isSpeakingStory ? 'bg-fuchsia-100 text-fuchsia-600 border-fuchsia-200 animate-pulse' : 'bg-white/60 text-slate-500 hover:text-fuchsia-500 border-white'}`}
-               >
-                 {isSpeakingStory ? (
-                   <>
-                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                     Stop Audio
-                   </>
-                 ) : (
-                   <>
+               <div className="flex items-center gap-2">
+                 {audioState === 'idle' ? (
+                   <button onClick={playStoryAudio} className="inline-flex items-center gap-2 font-bold text-sm px-4 py-2 rounded-full border shadow-sm transition-colors bg-white/60 text-slate-500 hover:text-fuchsia-500 border-white">
                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
                      Read Aloud
+                   </button>
+                 ) : (
+                   <>
+                     <button onClick={audioState === 'playing' ? pauseStoryAudio : playStoryAudio} disabled={audioState === 'loading'} className="bg-fuchsia-100 text-fuchsia-600 border-fuchsia-200 px-4 py-2 rounded-full border shadow-sm font-bold text-sm inline-flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50">
+                       {audioState === 'loading' ? (
+                         <><div className="w-4 h-4 border-2 border-fuchsia-300 border-t-fuchsia-600 rounded-full animate-spin"></div> Loading...</>
+                       ) : audioState === 'playing' ? (
+                         <><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pause</>
+                       ) : (
+                         <><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg> Resume</>
+                       )}
+                     </button>
+                     <button onClick={stopStoryAudio} className="bg-slate-200 text-slate-600 hover:bg-rose-100 hover:text-rose-600 px-3 py-2 rounded-full shadow-sm font-bold transition-colors active:scale-95" title="Stop">
+                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+                     </button>
                    </>
                  )}
-               </button>
+               </div>
             </div>
 
             <div className="space-y-6">
@@ -701,6 +733,7 @@ export default function ImmersionReader() {
              <button 
                onClick={(e) => speakText(selectionText, e)}
                className="text-white hover:text-fuchsia-400 font-black text-sm px-4 py-2.5 flex items-center gap-2 transition-colors border-r border-slate-700"
+               title="Listen and Repeat"
              >
                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
              </button>
@@ -767,7 +800,6 @@ export default function ImmersionReader() {
         </div>
       )}
 
-      {/* Dictionary Modal */}
       <DictionaryModal word={modalWord} onClose={() => setModalWord(null)} onUpdate={handleModalUpdate} />
     </main>
   );

@@ -137,7 +137,13 @@ export default function SentenceDrill() {
         body: JSON.stringify({ text })
       });
 
-      if (!res.ok) throw new Error('Failed to fetch audio');
+      if (!res.ok) {
+        if (res.status === 429) {
+          alert("🛑 Azure audio quota reached for this month!");
+          return;
+        }
+        throw new Error('Failed to fetch audio');
+      }
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -336,7 +342,6 @@ export default function SentenceDrill() {
     setFeedback({ score, expected: currentPrompt.expected, promptId: currentPrompt.promptId });
     setShowTarget(true); updateMastery(currentPrompt, score);
     
-    // Auto-play the correct sentence 
     const fullAlbanianSentence = currentPrompt.blanked_albanian.replace("___", currentPrompt.expected);
     speakText(fullAlbanianSentence);
 
