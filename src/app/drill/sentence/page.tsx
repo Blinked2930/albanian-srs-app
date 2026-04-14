@@ -6,8 +6,12 @@ import { useRouter } from "next/navigation";
 import { evaluateAnswer, scheduleSRS, pickDueWord, updateGlobalGrammarStat } from "@/lib/logic";
 import DictionaryModal from "@/components/DictionaryModal";
 import { supabase, isDemoMode } from "@/lib/supabaseClient";
+import { useTimeTracker } from "@/hooks/useTimeTracker";
 
 export default function SentenceDrill() {
+  // Start the invisible stopwatch
+  useTimeTracker("sentence_drill");
+
   const router = useRouter();
   const [phase, setPhase] = useState<"loading" | "setup" | "drill">("loading");
   const [loadError, setLoadError] = useState<string | null>(null);

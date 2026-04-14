@@ -12,6 +12,7 @@ import {
 import grammarRules from "@/lib/grammar_rules.json";
 import DictionaryModal from "@/components/DictionaryModal";
 import { supabase, isDemoMode } from "@/lib/supabaseClient";
+import { useTimeTracker } from "@/hooks/useTimeTracker";
 
 const TYPE_FILTERS = [
   { id: "Verb", label: "Verbs", emoji: "⚡", color: "bg-indigo-500", text: "text-indigo-600", match: (t: string | null) => t === "Verb" || t === "Command" },
@@ -24,6 +25,9 @@ const TYPE_FILTERS = [
 ];
 
 export default function WordDrill() {
+  // Start the invisible stopwatch
+  useTimeTracker("word_drill");
+
   const router = useRouter();
   const [phase, setPhase] = useState<"loading" | "setup" | "drill">("loading");
   const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set(TYPE_FILTERS.map(f => f.id)));

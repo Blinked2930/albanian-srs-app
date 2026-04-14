@@ -6,8 +6,12 @@ import { useRouter } from "next/navigation";
 import { evaluateAnswer } from "@/lib/logic";
 import DictionaryModal from "@/components/DictionaryModal";
 import { supabase, isDemoMode } from "@/lib/supabaseClient";
+import { useTimeTracker } from "@/hooks/useTimeTracker";
 
 export default function CramDrill() {
+  // Start the invisible stopwatch
+  useTimeTracker("cram_drill");
+
   const router = useRouter();
   const [phase, setPhase] = useState<"loading" | "drill" | "done">("loading");
   
