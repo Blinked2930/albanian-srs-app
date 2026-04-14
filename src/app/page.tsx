@@ -531,7 +531,7 @@ export default function Home() {
                     <BarChart data={timeChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <XAxis dataKey="name" stroke="#94a3b8" axisLine={false} tickLine={false} dy={10} tick={{fontWeight: 'bold', fontSize: 10}} />
                       <YAxis stroke="#94a3b8" axisLine={false} tickLine={false} tick={{fontWeight: 'bold', fontSize: 10}} />
-                      <Tooltip cursor={{fill: '#f8fafc'}} formatter={(value: number, name: string) => [`${value} min`, name === 'drills' ? 'Active Output' : 'Passive Input']} contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #f1f5f9', borderRadius: '16px', color: '#334155', fontWeight: 'bold' }} itemStyle={{ fontWeight: '900' }} />
+                      <Tooltip cursor={{fill: '#f8fafc'}} formatter={(value: any, name: any) => [`${value} min`, name === 'drills' ? 'Active Output' : 'Passive Input']} contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #f1f5f9', borderRadius: '16px', color: '#334155', fontWeight: 'bold' }} itemStyle={{ fontWeight: '900' }} />
                       <Bar dataKey="drills" stackId="a" fill="#6366f1" radius={[0, 0, 4, 4]} />
                       <Bar dataKey="immersion" stackId="a" fill="#d946ef" radius={[4, 4, 0, 0]} />
                     </BarChart>
