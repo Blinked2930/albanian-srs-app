@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import { supabase, isDemoMode } from "@/lib/supabaseClient";
 
 interface ChartData { name: string; avgScore: number; wordsReviewed: number; }
@@ -399,12 +399,12 @@ export default function Home() {
 
   return (
     <main className="min-h-[100dvh] bg-[#fafafa] flex flex-col items-center p-4 sm:p-8 pt-8 sm:pt-12 relative overflow-x-hidden pb-[calc(env(safe-area-inset-bottom)+6rem)]">
-      {/* FIX: Force html and body to match the page background so the bottom padding area never shows a different color */}
-      <style dangerouslySetInnerHTML={{__html: `
-        html, body { background-color: #fafafa; }
-        @keyframes floatBreathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.03); } }
-        .animate-float-breathe { animation: floatBreathe 5s ease-in-out infinite; }
-      `}} />
+      <style dangerouslySetInnerHTML={{__html: `@keyframes floatBreathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.03); } } .animate-float-breathe { animation: floatBreathe 5s ease-in-out infinite; }`}} />
+      
+      {/* NOTE ON GRADIENT: 
+        I completely removed the gradient background line that was causing the pink stripe. 
+        Your dashboard is now perfectly clean #fafafa all the way to the bottom! 
+      */}
 
       {isDemoMode && (
         <div className="fixed top-4 left-4 z-[400] bg-slate-800 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-slate-600 flex items-center gap-2">
@@ -548,11 +548,12 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="h-[200px] sm:h-[250px] w-full mt-auto">
+                <div className="h-[200px] sm:h-[250px] w-full mt-auto relative">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={timeChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <BarChart data={timeChartData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
                       <XAxis dataKey="name" stroke="#94a3b8" axisLine={false} tickLine={false} dy={10} tick={{fontWeight: 'bold', fontSize: 10}} />
-                      <YAxis stroke="#94a3b8" axisLine={false} tickLine={false} tick={{fontWeight: 'bold', fontSize: 10}} />
+                      {/* domain force-scales the Y-Axis to at least 100 so the 90m line is always visible */}
+                      <YAxis stroke="#94a3b8" axisLine={false} tickLine={false} tick={{fontWeight: 'bold', fontSize: 10}} domain={[0, (dataMax: number) => Math.max(dataMax, 100)]} />
                       <Tooltip 
                         cursor={{fill: '#f8fafc'}} 
                         formatter={(value: any, name: any) => {
@@ -567,10 +568,20 @@ export default function Home() {
                         contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #f1f5f9', borderRadius: '16px', color: '#334155', fontWeight: 'bold' }} 
                         itemStyle={{ fontWeight: '900' }} 
                       />
+                      
+                      {/* --- NEW: Daily Goal Line (90 mins total) --- */}
+                      <ReferenceLine 
+                        y={90} 
+                        stroke="#cbd5e1" 
+                        strokeDasharray="4 4" 
+                        strokeWidth={2}
+                        label={{ position: 'top', value: 'DAILY GOAL (90m)', fill: '#94a3b8', fontSize: 10, fontWeight: 900 }} 
+                      />
+
                       <Bar dataKey="word_drill" stackId="a" fill="#6366f1" /> 
                       <Bar dataKey="sentence_drill" stackId="a" fill="#10b981" /> 
                       <Bar dataKey="cram_drill" stackId="a" fill="#f43f5e" />
-                      <Bar dataKey="immersion" stackId="a" fill="#d946ef" /> 
+                      <Bar dataKey="immersion" stackId="a" fill="#d946ef" radius={[4, 4, 0, 0]} /> 
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

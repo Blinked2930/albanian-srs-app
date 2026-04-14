@@ -1,41 +1,73 @@
-import { useEffect, useRef } from "react";
-import { supabase, isDemoMode } from "@/lib/supabaseClient";
+import { useEffect, useRef } from 'react';
+import { supabase, isDemoMode } from '@/lib/supabaseClient';
 
 export function useTimeTracker(activityType: string) {
   const startTimeRef = useRef<number>(Date.now());
-  const hasLoggedRef = useRef<boolean>(false);
+  const accumulatedTimeRef = useRef<number>(0);
+  const isActiveRef = useRef<boolean>(true);
 
   useEffect(() => {
-    // Reset the stopwatch on mount
-    startTimeRef.current = Date.now();
-    hasLoggedRef.current = false;
+    // If it's a guest, don't bother tracking time to the database
+    if (isDemoMode) return;
 
-    const logTime = async () => {
-      // Prevent duplicate logging and ignore Ghost Mode guests
-      if (hasLoggedRef.current || isDemoMode) return;
-
-      const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
-
-      // Only save to database if you spent more than 15 seconds (filters out accidental clicks)
-      if (elapsedSeconds > 15) {
-        hasLoggedRef.current = true;
-        try {
-          await supabase.from('activity_logs').insert([
-            { activity_type: activityType, duration_seconds: elapsedSeconds }
-          ]);
-        } catch (err) {
-          console.error("Failed to log time:", err);
+    // Pauses the timer if you switch tabs or lock your phone
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        if (!isActiveRef.current) {
+          startTimeRef.current = Date.now();
+          isActiveRef.current = true;
+        }
+      } else {
+        if (isActiveRef.current) {
+          accumulatedTimeRef.current += Date.now() - startTimeRef.current;
+          isActiveRef.current = false;
         }
       }
     };
 
-    // Trigger log when the user closes the tab or refreshes
-    window.addEventListener('beforeunload', logTime);
+    // Pauses the timer if you click to another window on a desktop
+    const handleBlur = () => {
+      if (isActiveRef.current) {
+        accumulatedTimeRef.current += Date.now() - startTimeRef.current;
+        isActiveRef.current = false;
+      }
+    };
 
-    // Trigger log when the component unmounts (e.g., clicking back to the Dashboard)
+    // Resumes the timer when you click back into the window
+    const handleFocus = () => {
+      if (!isActiveRef.current) {
+        startTimeRef.current = Date.now();
+        isActiveRef.current = true;
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
+
     return () => {
-      window.removeEventListener('beforeunload', logTime);
-      logTime();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
+
+      // Tally up the final time when you leave the drill page
+      let totalTime = accumulatedTimeRef.current;
+      if (isActiveRef.current) {
+        totalTime += Date.now() - startTimeRef.current;
+      }
+
+      const durationSeconds = Math.floor(totalTime / 1000);
+      
+      // Only log it to the database if you were there for more than 10 seconds
+      if (durationSeconds > 10) {
+        supabase.from('activity_logs').insert({
+          activity_type: activityType,
+          duration_seconds: durationSeconds,
+          created_at: new Date().toISOString()
+        }).then(({ error }) => {
+          if (error) console.error("Error logging time:", error);
+        });
+      }
     };
   }, [activityType]);
 }
