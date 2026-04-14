@@ -379,9 +379,11 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-[#fafafa] flex flex-col items-center p-4 sm:p-8 relative overflow-x-hidden">
+    <main className="min-h-screen bg-[#fafafa] flex flex-col items-center p-4 sm:p-8 relative overflow-x-hidden pb-12">
       <style dangerouslySetInnerHTML={{__html: `@keyframes floatBreathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.03); } } .animate-float-breathe { animation: floatBreathe 5s ease-in-out infinite; }`}} />
-      <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-gradient-to-br from-pink-100/40 via-purple-50/20 to-indigo-100/40 z-0 pointer-events-none"></div>
+      
+      {/* FIX: Changed absolute to fixed and added inset-0 to prevent the gradient from stretching the page height */}
+      <div className="fixed inset-0 w-full h-full bg-gradient-to-br from-pink-100/40 via-purple-50/20 to-indigo-100/40 z-0 pointer-events-none"></div>
 
       {isDemoMode && (
         <div className="fixed top-4 left-4 z-[400] bg-slate-800 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-slate-600 flex items-center gap-2">
@@ -511,9 +513,9 @@ export default function Home() {
             </div>
 
             {/* --- NEW: Analytics Row --- */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 pb-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
               
-              {/* 1. Time Block Chart (Replaces Accuracy Trend) */}
+              {/* 1. Time Block Chart */}
               <section className="bg-white/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] border-2 border-white shadow-sm flex flex-col order-1 lg:order-none">
                 <div className="flex justify-between items-start mb-6">
                   <h2 className="text-xl sm:text-2xl font-black flex items-center gap-3 text-slate-700">
@@ -564,7 +566,6 @@ export default function Home() {
                 )}
               </section>
             </div>
-            <div className="pb-12"></div>
           </div>
         )}
       </div>
