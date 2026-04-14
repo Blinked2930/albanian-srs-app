@@ -7,7 +7,6 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, 
 import { supabase, isDemoMode } from "@/lib/supabaseClient";
 
 interface ChartData { name: string; avgScore: number; wordsReviewed: number; }
-// UPDATED: Now splitting out the explicit activity types
 interface TimeLogData { name: string; immersion: number; word_drill: number; sentence_drill: number; cram_drill: number; total: number; }
 interface HeatmapDay { date: string; active: boolean; intensity: number; }
 interface GrammarMetric { dimension_type: string; dimension_value: string; mastery_score: number; }
@@ -401,7 +400,7 @@ export default function Home() {
   return (
     <main className="min-h-[100dvh] bg-[#fafafa] flex flex-col items-center p-4 sm:p-8 pt-8 sm:pt-12 relative overflow-x-hidden pb-[calc(env(safe-area-inset-bottom)+6rem)]">
       <style dangerouslySetInnerHTML={{__html: `@keyframes floatBreathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.03); } } .animate-float-breathe { animation: floatBreathe 5s ease-in-out infinite; }`}} />
-      
+
       {isDemoMode && (
         <div className="fixed top-4 left-4 z-[400] bg-slate-800 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-slate-600 flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
