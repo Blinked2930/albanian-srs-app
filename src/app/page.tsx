@@ -3,10 +3,12 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { supabase, isDemoMode } from "@/lib/supabaseClient";
 
 interface ChartData { name: string; avgScore: number; wordsReviewed: number; }
+interface TimeLogData { name: string; immersion: number; drills: number; total: number; }
+interface HeatmapDay { date: string; active: boolean; intensity: number; }
 interface GrammarMetric { dimension_type: string; dimension_value: string; mastery_score: number; }
 interface KPIState { totalWords: number; globalMastery: number; activeStreak: number; dueToday: number; addedThisWeek: number; }
 interface CramGroup { id: string; name: string; vocab_ids: string[]; }
@@ -18,6 +20,11 @@ export default function Home() {
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [grammarPerformance, setGrammarPerformance] = useState<GrammarMetric[]>([]);
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
+
+  // --- NEW: Time Tracking States ---
+  const [timeChartData, setTimeChartData] = useState<TimeLogData[]>([]);
+  const [heatmapData, setHeatmapData] = useState<HeatmapDay[]>([]);
+  const [totalTimeThisWeek, setTotalTimeThisWeek] = useState(0);
 
   // --- Session Persistence States ---
   const [activeCramSession, setActiveCramSession] = useState(false);
@@ -107,47 +114,108 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const { data: vocabData, error: vocabError } = await supabase
-        .from('vocab')
-        .select('id, albanian, english, type, mastery_score, streak, next_review, created_at');
-
+      // 1. Fetch Vocab & Grammer
+      const { data: vocabData } = await supabase.from('vocab').select('id, albanian, english, type, mastery_score, streak, next_review, created_at');
       if (vocabData) processVocab(vocabData);
 
       const { data: groupData } = await supabase.from('cram_groups').select('*').order('created_at', { ascending: false });
       if (groupData) setCramGroups(groupData as CramGroup[]);
 
-      const { data: grammarData } = await supabase
-        .from('grammar_metrics')
-        .select('dimension_type, dimension_value, mastery_score')
-        .order('mastery_score', { ascending: true })
-        .limit(5);
+      const { data: grammarData } = await supabase.from('grammar_metrics').select('dimension_type, dimension_value, mastery_score').order('mastery_score', { ascending: true }).limit(5);
       if (grammarData) setGrammarPerformance(grammarData as GrammarMetric[]);
 
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      // 2. Setup Time Horizons
+      const today = new Date();
+      const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(today.getDate() - 6);
+      const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(today.getDate() - 29);
       
-      const { data: logData } = await supabase.from('review_logs').select('vocab_id, score, created_at').gte('created_at', sevenDaysAgo.toISOString()).order('created_at', { ascending: true });
+      // 3. Fetch Activity Logs (For Heatmap & Time Chart)
+      const { data: activityLogs } = await supabase.from('activity_logs')
+        .select('activity_type, duration_seconds, created_at')
+        .gte('created_at', thirtyDaysAgo.toISOString());
 
+      // --- Build Time Chart (Last 7 Days) ---
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const aggregatedChart: Record<string, { count: number; totalScore: number }> = {};
+      const aggregatedTime: Record<string, { immersion: number; drills: number }> = {};
+      
+      // Initialize last 7 days to 0
       for (let i = 6; i >= 0; i--) {
-        const d = new Date(); d.setDate(d.getDate() - i);
-        aggregatedChart[days[d.getDay()]] = { count: 0, totalScore: 0 };
+        const d = new Date(); d.setDate(today.getDate() - i);
+        aggregatedTime[days[d.getDay()]] = { immersion: 0, drills: 0 };
+      }
+
+      let totalWeekMinutes = 0;
+
+      // --- Build Heatmap (Last 30 Days) ---
+      const aggregatedHeatmap: Record<string, number> = {};
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(); d.setDate(today.getDate() - i);
+        aggregatedHeatmap[d.toISOString().split('T')[0]] = 0;
+      }
+
+      if (activityLogs) {
+        activityLogs.forEach((log: any) => {
+          const logDate = new Date(log.created_at);
+          const dateString = logDate.toISOString().split('T')[0];
+          const dayName = days[logDate.getDay()];
+          const durationMinutes = log.duration_seconds / 60;
+
+          // Add to Heatmap
+          if (aggregatedHeatmap[dateString] !== undefined) {
+             aggregatedHeatmap[dateString] += durationMinutes;
+          }
+
+          // Add to Time Chart (only if within last 7 days)
+          if (logDate >= sevenDaysAgo && aggregatedTime[dayName]) {
+            if (log.activity_type === 'immersion') {
+               aggregatedTime[dayName].immersion += durationMinutes;
+            } else {
+               aggregatedTime[dayName].drills += durationMinutes;
+            }
+            totalWeekMinutes += durationMinutes;
+          }
+        });
+      }
+
+      setTotalTimeThisWeek(Math.round(totalWeekMinutes));
+      
+      const finalTimeChartData: TimeLogData[] = Object.keys(aggregatedTime).map(key => ({
+        name: key, 
+        immersion: Number(aggregatedTime[key].immersion.toFixed(1)),
+        drills: Number(aggregatedTime[key].drills.toFixed(1)),
+        total: Number((aggregatedTime[key].immersion + aggregatedTime[key].drills).toFixed(1))
+      }));
+      setTimeChartData(finalTimeChartData);
+
+      const finalHeatmapData: HeatmapDay[] = Object.keys(aggregatedHeatmap).map(key => ({
+        date: key,
+        active: aggregatedHeatmap[key] > 0,
+        intensity: Math.min(Math.ceil(aggregatedHeatmap[key] / 15), 4) // Max intensity after 60 mins
+      }));
+      setHeatmapData(finalHeatmapData);
+
+
+      // 4. Fetch Review Logs (For Accuracy Trend)
+      const { data: logData } = await supabase.from('review_logs').select('vocab_id, score, created_at').gte('created_at', sevenDaysAgo.toISOString()).order('created_at', { ascending: true });
+      const aggregatedAccuracy: Record<string, { count: number; totalScore: number }> = {};
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(); d.setDate(today.getDate() - i);
+        aggregatedAccuracy[days[d.getDay()]] = { count: 0, totalScore: 0 };
       }
       
       if (logData) {
         setRecentLogs(logData);
         logData.forEach((log: any) => {
           const dayName = days[new Date(log.created_at).getDay()];
-          if (aggregatedChart[dayName]) { aggregatedChart[dayName].count += 1; aggregatedChart[dayName].totalScore += log.score; }
+          if (aggregatedAccuracy[dayName]) { aggregatedAccuracy[dayName].count += 1; aggregatedAccuracy[dayName].totalScore += log.score; }
         });
       }
       
-      const finalChartData: ChartData[] = Object.keys(aggregatedChart).map(key => ({
-        name: key, wordsReviewed: aggregatedChart[key].count,
-        avgScore: aggregatedChart[key].count > 0 ? Number((aggregatedChart[key].totalScore / aggregatedChart[key].count).toFixed(2)) : 0
+      const finalAccuracyChartData: ChartData[] = Object.keys(aggregatedAccuracy).map(key => ({
+        name: key, wordsReviewed: aggregatedAccuracy[key].count,
+        avgScore: aggregatedAccuracy[key].count > 0 ? Number((aggregatedAccuracy[key].totalScore / aggregatedAccuracy[key].count).toFixed(2)) : 0
       }));
-      setChartData(finalChartData);
+      setChartData(finalAccuracyChartData);
 
     } catch (err) { console.error("Error fetching dashboard data:", err); } 
     finally { setLoading(false); }
@@ -349,7 +417,6 @@ export default function Home() {
           <div className="space-y-6 sm:space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
               
-              {/* NEW 2x2 KPI GRID (Replaces the tall stretched columns) */}
               <div className="md:col-span-7 grid grid-cols-2 gap-3 sm:gap-5">
                 <div className="bg-white/80 backdrop-blur-xl p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border-2 border-white shadow-sm flex flex-col items-center justify-center transition-transform hover:scale-[1.02]">
                   <h3 className="text-[10px] sm:text-xs uppercase tracking-widest text-indigo-400 mb-1 font-black">Total Words</h3>
@@ -366,10 +433,31 @@ export default function Home() {
                   <p className="text-4xl sm:text-5xl font-black text-emerald-500 my-2">{kpis.dueToday}</p>
                   <p className="text-xs font-bold text-slate-400">Pending flashcards</p>
                 </div>
-                <div className="bg-white/80 backdrop-blur-xl p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border-2 border-white shadow-sm flex flex-col items-center justify-center transition-transform hover:scale-[1.02]">
-                  <h3 className="text-[10px] sm:text-xs uppercase tracking-widest text-rose-400 mb-1 font-black">Top Streak</h3>
-                  <p className="text-4xl sm:text-5xl font-black text-rose-500 my-2 flex items-center gap-1">{kpis.activeStreak} <span className="text-2xl sm:text-3xl">🔥</span></p>
-                  <p className="text-xs font-bold text-slate-400">Best review sequence</p>
+                <div className="bg-white/80 backdrop-blur-xl p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border-2 border-white shadow-sm flex flex-col items-center justify-center transition-transform hover:scale-[1.02] relative overflow-hidden">
+                  <h3 className="text-[10px] sm:text-xs uppercase tracking-widest text-emerald-400 mb-2 font-black">Consistency</h3>
+                  
+                  {/* NEW: 30 Day Heatmap Grid */}
+                  <div className="w-full flex justify-center px-2">
+                     <div className="grid grid-flow-col grid-rows-3 gap-1 h-[42px] sm:h-[48px] w-full max-w-[150px]">
+                        {heatmapData.map((day, i) => {
+                           const getIntensityClass = (lvl: number) => {
+                             if (lvl === 0) return 'bg-slate-100 border border-slate-200/50';
+                             if (lvl === 1) return 'bg-emerald-200';
+                             if (lvl === 2) return 'bg-emerald-300';
+                             if (lvl === 3) return 'bg-emerald-400';
+                             return 'bg-emerald-500';
+                           };
+                           return (
+                             <div 
+                               key={i} 
+                               title={day.date}
+                               className={`w-full h-full rounded-sm sm:rounded-[3px] transition-colors ${getIntensityClass(day.intensity)}`}
+                             ></div>
+                           );
+                        })}
+                     </div>
+                  </div>
+                  <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-widest">Last 30 Days</p>
                 </div>
               </div>
 
@@ -422,26 +510,37 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 pb-12">
-              <section className="bg-white/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] border-2 border-white shadow-sm flex flex-col">
-                <h2 className="text-xl sm:text-2xl font-black flex items-center gap-3 text-slate-700 mb-6">
-                  <div className="bg-amber-100 p-2 sm:p-3 rounded-xl text-amber-500"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-6 sm:h-6"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
-                  Accuracy Trend
-                </h2>
+            {/* --- NEW: Analytics Row --- */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 pb-6">
+              
+              {/* 1. Time Block Chart (Replaces Accuracy Trend) */}
+              <section className="bg-white/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] border-2 border-white shadow-sm flex flex-col order-1 lg:order-none">
+                <div className="flex justify-between items-start mb-6">
+                  <h2 className="text-xl sm:text-2xl font-black flex items-center gap-3 text-slate-700">
+                    <div className="bg-sky-100 p-2 sm:p-3 rounded-xl text-sky-500"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-6 sm:h-6"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+                    Time Block
+                  </h2>
+                  <div className="text-right">
+                    <p className="text-xl sm:text-2xl font-black text-sky-500">{Math.floor(totalTimeThisWeek / 60)}<span className="text-sm text-slate-400 ml-1 font-bold">hrs</span> {totalTimeThisWeek % 60}<span className="text-sm text-slate-400 ml-1 font-bold">m</span></p>
+                    <p className="text-[10px] sm:text-xs uppercase tracking-widest font-bold text-slate-400">This Week</p>
+                  </div>
+                </div>
+
                 <div className="h-[200px] sm:h-[250px] w-full mt-auto">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <defs><linearGradient id="colorMastery" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4}/><stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/></linearGradient></defs>
+                    <BarChart data={timeChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <XAxis dataKey="name" stroke="#94a3b8" axisLine={false} tickLine={false} dy={10} tick={{fontWeight: 'bold', fontSize: 10}} />
-                      <YAxis stroke="#94a3b8" axisLine={false} tickLine={false} domain={[0, 1]} tick={{fontWeight: 'bold', fontSize: 10}} />
-                      <Tooltip formatter={(value: unknown) => [`${(value as number).toFixed(2)}`, "Avg score"]} contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #f1f5f9', borderRadius: '16px', color: '#334155', fontWeight: 'bold' }} itemStyle={{ color: '#f59e0b', fontWeight: '900' }} />
-                      <Area type="monotone" dataKey="avgScore" stroke="#f59e0b" strokeWidth={4} fillOpacity={1} fill="url(#colorMastery)" />
-                    </AreaChart>
+                      <YAxis stroke="#94a3b8" axisLine={false} tickLine={false} tick={{fontWeight: 'bold', fontSize: 10}} />
+                      <Tooltip cursor={{fill: '#f8fafc'}} formatter={(value: number, name: string) => [`${value} min`, name === 'drills' ? 'Active Output' : 'Passive Input']} contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #f1f5f9', borderRadius: '16px', color: '#334155', fontWeight: 'bold' }} itemStyle={{ fontWeight: '900' }} />
+                      <Bar dataKey="drills" stackId="a" fill="#6366f1" radius={[0, 0, 4, 4]} />
+                      <Bar dataKey="immersion" stackId="a" fill="#d946ef" radius={[4, 4, 0, 0]} />
+                    </BarChart>
                   </ResponsiveContainer>
                 </div>
               </section>
 
-              <section className="bg-white/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] border-2 border-white shadow-sm flex flex-col">
+              {/* 2. Grammar Weaknesses */}
+              <section className="bg-white/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] border-2 border-white shadow-sm flex flex-col order-2 lg:order-none">
                 <h2 className="text-xl sm:text-2xl font-black flex items-center gap-3 text-slate-700 mb-6">
                   <div className="bg-rose-100 p-2 sm:p-3 rounded-xl text-rose-500"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sm:w-6 sm:h-6"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3z"/><path d="M3 4h8s-.5-2-1-2H5a2 2 0 0 0-2 2z"/></svg></div>
                   Grammar Weaknesses
@@ -465,6 +564,7 @@ export default function Home() {
                 )}
               </section>
             </div>
+            <div className="pb-12"></div>
           </div>
         )}
       </div>
