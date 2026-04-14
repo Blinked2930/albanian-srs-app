@@ -399,7 +399,12 @@ export default function Home() {
 
   return (
     <main className="min-h-[100dvh] bg-[#fafafa] flex flex-col items-center p-4 sm:p-8 pt-8 sm:pt-12 relative overflow-x-hidden pb-[calc(env(safe-area-inset-bottom)+6rem)]">
-      <style dangerouslySetInnerHTML={{__html: `@keyframes floatBreathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.03); } } .animate-float-breathe { animation: floatBreathe 5s ease-in-out infinite; }`}} />
+      {/* FIX: Force html and body to match the page background so the bottom padding area never shows a different color */}
+      <style dangerouslySetInnerHTML={{__html: `
+        html, body { background-color: #fafafa; }
+        @keyframes floatBreathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.03); } }
+        .animate-float-breathe { animation: floatBreathe 5s ease-in-out infinite; }
+      `}} />
 
       {isDemoMode && (
         <div className="fixed top-4 left-4 z-[400] bg-slate-800 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-slate-600 flex items-center gap-2">
