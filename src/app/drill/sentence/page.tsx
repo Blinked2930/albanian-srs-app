@@ -38,7 +38,7 @@ export default function SentenceDrill() {
   const [showTarget, setShowTarget] = useState(false);
   const [showGhostModal, setShowGhostModal] = useState(false);
 
-  // NEW: Audio Ref for stopping audio if needed
+  // Audio Ref for stopping Azure audio if needed
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // --- PERSISTENCE: Save State ---
@@ -56,6 +56,7 @@ export default function SentenceDrill() {
         audioRef.current.pause();
         audioRef.current.src = "";
       }
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     };
   }, []);
 
@@ -111,12 +112,21 @@ export default function SentenceDrill() {
     }
   }
 
-  // --- AZURE TEXT TO SPEECH ---
+  // --- SMART TEXT TO SPEECH (Azure for you, Browser for guests) ---
   const speakText = async (text: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     
+    if (isDemoMode) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'sq-AL';
+      utterance.rate = 0.85;
+      window.speechSynthesis.speak(utterance);
+      return;
+    }
+
     try {
-      // Stop any currently playing audio
       if (audioRef.current) {
         audioRef.current.pause();
       }
@@ -175,7 +185,9 @@ export default function SentenceDrill() {
   }
 
   function pickAndSetPrompt(vocab: any[]) {
-    if (audioRef.current) audioRef.current.pause(); // Stop audio on next
+    if (audioRef.current) audioRef.current.pause(); 
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    
     const word = pickDueWord(vocab);
     if (!word) { setCurrentPrompt(null); setCaughtUp(true); return; }
     setCaughtUp(false);
@@ -324,7 +336,7 @@ export default function SentenceDrill() {
     setFeedback({ score, expected: currentPrompt.expected, promptId: currentPrompt.promptId });
     setShowTarget(true); updateMastery(currentPrompt, score);
     
-    // Auto-play the correct sentence using Azure!
+    // Auto-play the correct sentence 
     const fullAlbanianSentence = currentPrompt.blanked_albanian.replace("___", currentPrompt.expected);
     speakText(fullAlbanianSentence);
 

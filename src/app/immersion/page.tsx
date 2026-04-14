@@ -45,7 +45,7 @@ export default function ImmersionReader() {
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isExplaining, setIsExplaining] = useState(false);
 
-  // --- NEW: Azure Audio States & Refs ---
+  // --- Azure Audio States & Refs ---
   const [isSpeakingStory, setIsSpeakingStory] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -58,6 +58,7 @@ export default function ImmersionReader() {
         audioRef.current.pause();
         audioRef.current.src = "";
       }
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     };
   }, []);
 
@@ -72,6 +73,7 @@ export default function ImmersionReader() {
       audioRef.current.pause();
       setIsSpeakingStory(false);
     }
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     
     if (story) {
       sessionStorage.setItem('immersion_current_story_id', story.id);
@@ -129,10 +131,23 @@ export default function ImmersionReader() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // --- AZURE TEXT TO SPEECH ---
+  // --- SMART TEXT TO SPEECH (Azure for you, Browser for guests) ---
   const speakText = async (text: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     
+    if (isDemoMode) {
+      if (!('speechSynthesis' in window)) {
+        showToast("Audio not supported on this browser.", "🔇");
+        return;
+      }
+      window.speechSynthesis.cancel(); 
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'sq-AL';
+      utterance.rate = 0.85; 
+      window.speechSynthesis.speak(utterance);
+      return;
+    }
+
     try {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -158,6 +173,26 @@ export default function ImmersionReader() {
   };
 
   const toggleStoryAudio = async () => {
+    if (isDemoMode) {
+      if (!('speechSynthesis' in window)) {
+        showToast("Audio not supported on this browser.", "🔇");
+        return;
+      }
+      if (isSpeakingStory) {
+        window.speechSynthesis.cancel();
+        setIsSpeakingStory(false);
+      } else if (currentStory) {
+        const fullText = `${currentStory.title_albanian}. ${currentStory.content_albanian.replace(/\*/g, '')}`;
+        const utterance = new SpeechSynthesisUtterance(fullText);
+        utterance.lang = 'sq-AL';
+        utterance.rate = 0.85;
+        utterance.onend = () => setIsSpeakingStory(false);
+        window.speechSynthesis.speak(utterance);
+        setIsSpeakingStory(true);
+      }
+      return;
+    }
+
     if (isSpeakingStory && audioRef.current) {
       audioRef.current.pause();
       setIsSpeakingStory(false);
