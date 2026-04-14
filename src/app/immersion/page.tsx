@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { supabase, isDemoMode } from "@/lib/supabaseClient";
 import DictionaryModal from "@/components/DictionaryModal";
+import { useTimeTracker } from "@/hooks/useTimeTracker";
 
 interface Story {
   id: string;
@@ -16,9 +17,18 @@ interface Story {
 }
 
 export default function ImmersionReader() {
+  // Start the invisible stopwatch for this specific activity!
+  useTimeTracker("immersion");
+
   const [stories, setStories] = useState<Story[]>([]);
   const [currentStory, setCurrentStory] = useState<Story | null>(null);
   const [vocabMap, setVocabMap] = useState<Record<string, any>>({});
+  
+  // Deep Search States
+  const [allConjugations, setAllConjugations] = useState<any[]>([]);
+  const [allNouns, setAllNouns] = useState<any[]>([]);
+  const [allAdjectives, setAllAdjectives] = useState<any[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [isGeneratingStory, setIsGeneratingStory] = useState(false);
 
@@ -42,6 +52,34 @@ export default function ImmersionReader() {
     fetchData();
   }, []);
 
+  // --- STATE MEMORY: Save active story and scroll position ---
+  const handleSetCurrentStory = (story: Story | null) => {
+    setCurrentStory(story);
+    if (story) {
+      sessionStorage.setItem('immersion_current_story_id', story.id);
+      const savedScroll = sessionStorage.getItem(`immersion_scroll_${story.id}`);
+      if (savedScroll) {
+        setTimeout(() => window.scrollTo({ top: parseInt(savedScroll), behavior: 'instant' }), 50);
+      } else {
+        window.scrollTo(0, 0);
+      }
+    } else {
+      sessionStorage.removeItem('immersion_current_story_id');
+      window.scrollTo(0, 0);
+    }
+  };
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (currentStory) {
+        sessionStorage.setItem(`immersion_scroll_${currentStory.id}`, window.scrollY.toString());
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [currentStory]);
+
+  // Listen for text selection to show the floating tooltip
   useEffect(() => {
     const handleSelection = () => {
       const selection = window.getSelection();
@@ -76,25 +114,44 @@ export default function ImmersionReader() {
   async function fetchData() {
     setLoading(true);
     try {
-      const { data: storyData } = await supabase
-        .from("stories")
-        .select("*")
-        .order("created_at", { ascending: false });
+      // Parallel fetch to grab stories, vocab, AND grammar tables for local deep search
+      const [storyRes, vocabRes, conjRes, nounRes, adjRes] = await Promise.all([
+        supabase.from("stories").select("*").order("created_at", { ascending: false }),
+        supabase.from("vocab").select("*"),
+        supabase.from("conjugations").select("*"),
+        supabase.from("noun_declensions").select("*"),
+        supabase.from("adjective_agreements").select("*")
+      ]);
 
-      if (storyData && storyData.length > 0) {
-        setStories(storyData);
-      } else {
-        setStories([]);
+      if (storyRes.data) {
+        setStories(storyRes.data);
+        
+        // Restore active story from session memory if it exists
+        const savedStoryId = sessionStorage.getItem('immersion_current_story_id');
+        if (savedStoryId) {
+          const found = storyRes.data.find(s => s.id === savedStoryId);
+          if (found) {
+            setCurrentStory(found);
+            const savedScroll = sessionStorage.getItem(`immersion_scroll_${found.id}`);
+            if (savedScroll) {
+              setTimeout(() => window.scrollTo({ top: parseInt(savedScroll), behavior: 'instant' }), 50);
+            }
+          }
+        }
       }
 
-      const { data: vocabData } = await supabase.from("vocab").select("*");
-      if (vocabData) {
+      if (vocabRes.data) {
         const map: Record<string, any> = {};
-        vocabData.forEach(v => {
+        vocabRes.data.forEach(v => {
           map[v.albanian.toLowerCase()] = v;
         });
         setVocabMap(map);
       }
+
+      if (conjRes.data) setAllConjugations(conjRes.data);
+      if (nounRes.data) setAllNouns(nounRes.data);
+      if (adjRes.data) setAllAdjectives(adjRes.data);
+
     } catch (error) {
       console.error("Error fetching immersion data:", error);
     } finally {
@@ -136,13 +193,11 @@ export default function ImmersionReader() {
     setStoryToDelete({ id, title });
   };
 
-  // 🌟 UPDATED: Secure API Delete Route
   const confirmDeleteStory = async () => {
     if (!storyToDelete) return;
     setIsDeletingStory(true);
     
     try {
-      // Hit our secure API route instead of the direct database
       const res = await fetch('/api/delete-story', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -154,12 +209,10 @@ export default function ImmersionReader() {
         throw new Error(errorData.error || "Failed to delete story");
       }
       
-      // 1. Remove it from the local list
       setStories(prev => prev.filter(s => s.id !== storyToDelete.id));
       
-      // 2. If you were currently reading this story, kick back to library
       if (currentStory?.id === storyToDelete.id) {
-        setCurrentStory(null);
+        handleSetCurrentStory(null);
       }
 
       showToast("Story deleted.", "🗑️");
@@ -176,42 +229,101 @@ export default function ImmersionReader() {
     const cleanWord = rawWord.replace(/[^\w\sëçËÇ]/gi, '').toLowerCase().trim();
     if (!cleanWord) return;
 
-    const matchedVocab = vocabMap[cleanWord];
-    
-    if (matchedVocab) {
-      setModalWord(matchedVocab);
-    } else {
-      setModalWord({ albanian: cleanWord, isLoadingTemp: true });
+    // 1. Check exact match
+    const exactMatch = vocabMap[cleanWord];
+    if (exactMatch) {
+      setModalWord(exactMatch);
+      return;
+    }
 
-      if (isDemoMode) {
-        setModalWord({ albanian: cleanWord, english: "Ghost Mode Translation", type: "Unknown", isTemp: true });
+    // 1.5 Check Fuzzy Phrase Match (e.g., clicking "vogël" matches "e vogël")
+    // Only do this for words > 2 chars to avoid randomly matching "e" or "të" to the first phrase containing them
+    if (cleanWord.length >= 2) {
+      const phraseMatch = Object.values(vocabMap).find(v => {
+        const target = v.albanian.toLowerCase();
+        return target.includes(' ') && target.split(' ').includes(cleanWord);
+      });
+      if (phraseMatch) {
+        setModalWord(phraseMatch);
         return;
       }
+    }
 
-      try {
-        const res = await fetch('/api/quick-define', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ word: cleanWord, context: currentStory?.content_albanian })
-        });
-        
-        const data = await res.json();
-        
-        if (res.ok) {
-          setModalWord({
-            albanian: cleanWord,
-            english: data.english,
-            type: data.type,
-            isTemp: true 
-          });
-        } else {
-          setModalWord(null);
-          showToast("Failed to define word.", "❌");
-        }
-      } catch (err) {
-        setModalWord(null);
-        showToast("Network error.", "🌐");
+    // 2. Local Deep Search (Bypass AI entirely if it's a known conjugation)
+    let deepMatchParentId = null;
+    let matchReasonStr = null;
+
+    // Check Verbs
+    for (const c of allConjugations) {
+      if ([c.une, c.ti, c.ai_ajo, c.ne, c.ju, c.ata_ato].some((v: any) => v && v.toLowerCase() === cleanWord)) {
+        deepMatchParentId = c.vocab_id;
+        matchReasonStr = `↳ Matches: ${cleanWord}`;
+        break;
       }
+    }
+    
+    // Check Nouns
+    if (!deepMatchParentId) {
+      for (const n of allNouns) {
+        if ([n.indef_sg, n.def_sg, n.indef_pl, n.def_pl].some((v: any) => v && v.toLowerCase() === cleanWord)) {
+          deepMatchParentId = n.vocab_id;
+          matchReasonStr = `↳ Matches: ${cleanWord}`;
+          break;
+        }
+      }
+    }
+
+    // Check Adjectives
+    if (!deepMatchParentId) {
+      for (const a of allAdjectives) {
+        if ([a.masc_sg, a.fem_sg, a.masc_pl, a.fem_pl].some((v: any) => v && v.toLowerCase() === cleanWord)) {
+          deepMatchParentId = a.vocab_id;
+          matchReasonStr = `↳ Matches: ${cleanWord}`;
+          break;
+        }
+      }
+    }
+
+    // If we found a deep match locally, pop open the grammar modal and highlight it!
+    if (deepMatchParentId) {
+      const parentVocab = Object.values(vocabMap).find(v => v.id === deepMatchParentId);
+      if (parentVocab) {
+        setModalWord({ ...parentVocab, matchReason: matchReasonStr });
+        return;
+      }
+    }
+
+    // 3. Fallback: Quick Define API Pipeline
+    setModalWord({ albanian: cleanWord, isLoadingTemp: true });
+
+    if (isDemoMode) {
+      setModalWord({ albanian: cleanWord, english: "Ghost Mode Translation", type: "Unknown", isTemp: true });
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/quick-define', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word: cleanWord, context: currentStory?.content_albanian })
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) {
+        setModalWord({
+          albanian: cleanWord,
+          english: data.english,
+          type: data.type,
+          isTemp: true 
+        });
+      } else {
+        setModalWord(null);
+        showToast("Failed to define word.", "❌");
+      }
+    } catch (err) {
+      setModalWord(null);
+      showToast("Network error.", "🌐");
     }
   };
 
@@ -376,7 +488,7 @@ export default function ImmersionReader() {
                 {stories.map((story) => (
                   <div 
                     key={story.id} 
-                    onClick={() => setCurrentStory(story)}
+                    onClick={() => handleSetCurrentStory(story)}
                     className="bg-white/80 backdrop-blur-md p-6 sm:p-8 rounded-[2rem] shadow-sm hover:shadow-md transition-all text-left border-2 border-white hover:border-fuchsia-200 group flex flex-col h-full relative cursor-pointer"
                   >
                     {!isDemoMode && (
@@ -415,7 +527,7 @@ export default function ImmersionReader() {
         {currentStory && (
           <div className="animate-in fade-in zoom-in-[0.98] duration-300">
             <button 
-              onClick={() => { setCurrentStory(null); window.scrollTo(0,0); }} 
+              onClick={() => handleSetCurrentStory(null)} 
               className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-600 font-bold text-sm mb-6 transition-colors bg-white/60 px-4 py-2 rounded-full border border-white shadow-sm"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
