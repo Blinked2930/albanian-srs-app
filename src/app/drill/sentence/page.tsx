@@ -9,7 +9,6 @@ import { supabase, isDemoMode } from "@/lib/supabaseClient";
 import { useTimeTracker } from "@/hooks/useTimeTracker";
 
 export default function SentenceDrill() {
-  // Start the invisible stopwatch
   useTimeTracker("sentence_drill");
 
   const router = useRouter();
@@ -37,8 +36,6 @@ export default function SentenceDrill() {
   const actionLock = useRef(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showTarget, setShowTarget] = useState(false);
-  
-  // NEW: Ghost Mode Modal State
   const [showGhostModal, setShowGhostModal] = useState(false);
 
   // --- PERSISTENCE: Save State ---
@@ -49,13 +46,17 @@ export default function SentenceDrill() {
     }
   }, [phase, currentPrompt, userInput, feedback, caughtUp, showTarget, explanation]);
 
+  // Stop audio if user leaves the page
+  useEffect(() => {
+    return () => { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); };
+  }, []);
+
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
     setPhase("loading");
     setLoadError(null);
 
-    // GHOST MODE: Do not let guests trigger database purges
     if (!isDemoMode) {
       try {
         const twoWeeksAgo = new Date();
@@ -87,7 +88,6 @@ export default function SentenceDrill() {
       dbVocabRef.current = []; setDbVocab([]);
     }
 
-    // --- PERSISTENCE: Rehydrate ---
     const saved = sessionStorage.getItem('sentence_drill_state');
     if (saved) {
       const parsed = JSON.parse(saved);
@@ -103,12 +103,25 @@ export default function SentenceDrill() {
     }
   }
 
+  // --- NATIVE TEXT TO SPEECH ---
+  const speakText = (text: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!('speechSynthesis' in window)) {
+      alert("Text-to-speech not supported in this browser.");
+      return;
+    }
+    window.speechSynthesis.cancel(); 
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'sq-AL';
+    utterance.rate = 0.85; // Slightly slower for easier shadowing
+    window.speechSynthesis.speak(utterance);
+  };
+
   const handleGenerateSentences = async () => {
     if (isDemoMode) {
       setShowGhostModal(true);
       return;
     }
-
     setIsGenerating(true);
     try {
       const res = await fetch('/api/generate-sentences', { method: 'POST' });
@@ -139,6 +152,7 @@ export default function SentenceDrill() {
   }
 
   function pickAndSetPrompt(vocab: any[]) {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel(); // Stop audio on next
     const word = pickDueWord(vocab);
     if (!word) { setCurrentPrompt(null); setCaughtUp(true); return; }
     setCaughtUp(false);
@@ -205,17 +219,11 @@ export default function SentenceDrill() {
       });
       const data = await res.json();
 
-      if (res.ok) {
-        setExplanation(data.explanation);
-      } else {
-        alert(`API Error: ${data.error || "Failed to generate explanation."}`);
-      }
+      if (res.ok) setExplanation(data.explanation);
+      else alert(`API Error: ${data.error || "Failed to generate explanation."}`);
     } catch (err: any) {
-      console.error(err);
-      alert(`Network Error: ${err.message}`);
-    } finally {
-      setIsGeneratingExplanation(false);
-    }
+      console.error(err); alert(`Network Error: ${err.message}`);
+    } finally { setIsGeneratingExplanation(false); }
   };
 
   async function updateMastery(prompt: any, score: number) {
@@ -226,14 +234,10 @@ export default function SentenceDrill() {
         streak: schedule.newStreak, mastery_score: schedule.newMastery, confidence: schedule.newConfidence, last_seen: new Date().toISOString()
       };
 
-      // 1. UPDATE LOCAL STATE IMMEDIATELY (So UI updates correctly)
       const idx = dbVocabRef.current.findIndex((w: any) => w.id === prompt.vocab_id);
       if (idx !== -1) { dbVocabRef.current[idx] = { ...dbVocabRef.current[idx], ...updatedValues }; }
 
-      // 2. GHOST MODE BYPASS
       if (isDemoMode) return;
-
-      // 3. EXECUTE SUPABASE WRITES
       await supabase.from("vocab").update(updatedValues).eq("id", prompt.vocab_id);
 
       let grammarMasteryId = null;
@@ -285,9 +289,7 @@ export default function SentenceDrill() {
 
       await supabase.from("review_logs").insert({ vocab_id: prompt.vocab_id, grammar_mastery_id: grammarMasteryId, score, created_at: new Date().toISOString() });
 
-    } catch (err) {
-      console.error("Critical failure executing updateMastery database calls:", err);
-    }
+    } catch (err) { console.error("Critical failure executing updateMastery database calls:", err); }
   }
 
   const handleCheck = () => {
@@ -298,6 +300,11 @@ export default function SentenceDrill() {
 
     setFeedback({ score, expected: currentPrompt.expected, promptId: currentPrompt.promptId });
     setShowTarget(true); updateMastery(currentPrompt, score);
+    
+    // Auto-play the correct sentence for shadowing if they got it right (or wrong, so they can hear the fix)
+    const fullAlbanianSentence = currentPrompt.blanked_albanian.replace("___", currentPrompt.expected);
+    speakText(fullAlbanianSentence);
+
     setTimeout(() => { actionLock.current = false; }, 100);
   };
 
@@ -350,7 +357,6 @@ export default function SentenceDrill() {
         )}
 
         <div className="max-w-md sm:max-w-3xl w-full">
-
           <header className="mb-8 text-center sm:text-left">
             <Link href="/" className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-600 font-bold text-sm mb-4 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
@@ -384,24 +390,6 @@ export default function SentenceDrill() {
             </div>
           </div>
         </div>
-
-        {/* GHOST MODE MODAL */}
-        {showGhostModal && (
-          <div className="fixed inset-0 z-[500] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowGhostModal(false)}>
-            <div className="bg-white rounded-[2rem] p-6 sm:p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95 flex flex-col items-center text-center" onClick={e => e.stopPropagation()}>
-              <div className="w-16 h-16 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-inner text-3xl">
-                👻
-              </div>
-              <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Ghost Mode Active</h3>
-              <p className="text-slate-500 font-bold mb-8">
-                Live generation is disabled for guests to save on computing power. Imagine perfectly tailored Albanian sentences generating right here! 🚀
-              </p>
-              <button onClick={() => setShowGhostModal(false)} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-black py-3.5 rounded-xl transition-colors active:scale-95">
-                Got it!
-              </button>
-            </div>
-          </div>
-        )}
       </main>
     );
   }
@@ -448,6 +436,8 @@ export default function SentenceDrill() {
 
         {!caughtUp && currentPrompt && (() => {
           const sentenceParts = currentPrompt.blanked_albanian ? currentPrompt.blanked_albanian.split("___") : ["", ""];
+          const fullAlbanianSentence = currentPrompt.blanked_albanian.replace("___", currentPrompt.expected);
+
           return (
             <form onSubmit={(e) => { e.preventDefault(); handleCheck(); }} className="flex flex-col w-full">
               <div className="text-center mb-8 sm:mb-10">
@@ -489,21 +479,29 @@ export default function SentenceDrill() {
               {feedback && feedback.promptId === currentPrompt?.promptId && (
                 <div className="mt-4 sm:mt-5 flex flex-col gap-3 sm:gap-4 animate-in fade-in slide-in-from-bottom-2">
 
-                  <div className={`p-4 sm:p-5 rounded-[1.5rem] text-center font-bold border-2 ${feedback.score === 1.0 ? "bg-emerald-50 text-emerald-600 border-emerald-200" :
-                      feedback.score > 0 ? "bg-amber-50 text-amber-600 border-amber-200" :
-                        "bg-rose-50 text-rose-600 border-rose-200"
+                  <div className={`p-4 sm:p-5 rounded-[1.5rem] text-left font-bold border-2 ${feedback.score === 1.0 ? "bg-emerald-50 border-emerald-200" :
+                      feedback.score > 0 ? "bg-amber-50 border-amber-200" :
+                        "bg-rose-50 border-rose-200"
                     }`}>
-                    <p className="text-lg sm:text-xl mb-1 sm:mb-1.5">{feedback.score === 1.0 ? "Perfect! ✨" : feedback.score > 0 ? "Almost!" : "Incorrect."}</p>
+                    <div className="text-center mb-4">
+                       <p className={`text-lg sm:text-xl mb-1 sm:mb-1.5 ${feedback.score === 1.0 ? "text-emerald-600" : feedback.score > 0 ? "text-amber-600" : "text-rose-600"}`}>{feedback.score === 1.0 ? "Perfect! ✨" : feedback.score > 0 ? "Almost!" : "Incorrect."}</p>
+                       {feedback.score < 1.0 && (
+                         <p className="text-sm sm:text-base text-slate-500">
+                           Missing Word: <span className="font-black text-slate-800 text-base sm:text-lg">{feedback.expected}</span>
+                         </p>
+                       )}
+                    </div>
 
-                    {feedback.score < 1.0 && (
-                      <p className="text-sm sm:text-base text-slate-500">
-                        Missing Word: <span className="font-black text-slate-800 text-base sm:text-lg">{feedback.expected}</span>
-                      </p>
-                    )}
-
-                    <div className="mt-4 sm:mt-4 pt-4 sm:pt-4 border-t border-slate-200/50 text-sm sm:text-sm text-left px-2 sm:px-3">
-                      <p className="text-slate-400 font-bold mb-1 text-[11px] uppercase tracking-wider">Full Translation</p>
-                      <p className="text-slate-700 font-medium italic">"{currentPrompt.english_translation}"</p>
+                    {/* NEW: SHADOWING BOX */}
+                    <div className="mt-4 sm:mt-4 pt-4 sm:pt-4 border-t border-slate-200/50">
+                      <div className="flex justify-between items-start mb-2">
+                        <p className="text-slate-400 font-bold text-[11px] uppercase tracking-wider">Shadowing</p>
+                        <button onClick={(e) => speakText(fullAlbanianSentence, e)} className="text-emerald-600 bg-emerald-100/50 hover:bg-emerald-200 p-2 rounded-xl transition-all active:scale-95" title="Listen and Repeat">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                        </button>
+                      </div>
+                      <p className="text-slate-800 font-black text-lg mb-1 leading-snug">{fullAlbanianSentence}</p>
+                      <p className="text-slate-500 font-medium italic text-sm">"{currentPrompt.english_translation}"</p>
                     </div>
                   </div>
 

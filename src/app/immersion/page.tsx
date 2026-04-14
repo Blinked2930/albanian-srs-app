@@ -17,7 +17,6 @@ interface Story {
 }
 
 export default function ImmersionReader() {
-  // Start the invisible stopwatch for this specific activity!
   useTimeTracker("immersion");
 
   const [stories, setStories] = useState<Story[]>([]);
@@ -46,7 +45,15 @@ export default function ImmersionReader() {
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isExplaining, setIsExplaining] = useState(false);
 
+  // --- NEW: Audio States ---
+  const [isSpeakingStory, setIsSpeakingStory] = useState(false);
+
   const readerRef = useRef<HTMLDivElement>(null);
+
+  // Stop audio if user leaves the page
+  useEffect(() => {
+    return () => { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); };
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -55,6 +62,11 @@ export default function ImmersionReader() {
   // --- STATE MEMORY: Save active story and scroll position ---
   const handleSetCurrentStory = (story: Story | null) => {
     setCurrentStory(story);
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeakingStory(false);
+    }
+    
     if (story) {
       sessionStorage.setItem('immersion_current_story_id', story.id);
       const savedScroll = sessionStorage.getItem(`immersion_scroll_${story.id}`);
@@ -111,10 +123,42 @@ export default function ImmersionReader() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  // --- NATIVE TEXT TO SPEECH ---
+  const speakText = (text: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!('speechSynthesis' in window)) {
+      showToast("Audio not supported on this browser.", "🔇");
+      return;
+    }
+    window.speechSynthesis.cancel(); 
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'sq-AL';
+    utterance.rate = 0.85; 
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const toggleStoryAudio = () => {
+    if (!('speechSynthesis' in window)) {
+      showToast("Audio not supported on this browser.", "🔇");
+      return;
+    }
+    if (isSpeakingStory) {
+      window.speechSynthesis.cancel();
+      setIsSpeakingStory(false);
+    } else if (currentStory) {
+      const fullText = `${currentStory.title_albanian}. ${currentStory.content_albanian.replace(/\*/g, '')}`;
+      const utterance = new SpeechSynthesisUtterance(fullText);
+      utterance.lang = 'sq-AL';
+      utterance.rate = 0.85;
+      utterance.onend = () => setIsSpeakingStory(false);
+      window.speechSynthesis.speak(utterance);
+      setIsSpeakingStory(true);
+    }
+  };
+
   async function fetchData() {
     setLoading(true);
     try {
-      // Parallel fetch to grab stories, vocab, AND grammar tables for local deep search
       const [storyRes, vocabRes, conjRes, nounRes, adjRes] = await Promise.all([
         supabase.from("stories").select("*").order("created_at", { ascending: false }),
         supabase.from("vocab").select("*"),
@@ -125,8 +169,6 @@ export default function ImmersionReader() {
 
       if (storyRes.data) {
         setStories(storyRes.data);
-        
-        // Restore active story from session memory if it exists
         const savedStoryId = sessionStorage.getItem('immersion_current_story_id');
         if (savedStoryId) {
           const found = storyRes.data.find(s => s.id === savedStoryId);
@@ -229,15 +271,12 @@ export default function ImmersionReader() {
     const cleanWord = rawWord.replace(/[^\w\sëçËÇ]/gi, '').toLowerCase().trim();
     if (!cleanWord) return;
 
-    // 1. Check exact match
     const exactMatch = vocabMap[cleanWord];
     if (exactMatch) {
       setModalWord(exactMatch);
       return;
     }
 
-    // 1.5 Check Fuzzy Phrase Match (e.g., clicking "vogël" matches "e vogël")
-    // Only do this for words > 2 chars to avoid randomly matching "e" or "të" to the first phrase containing them
     if (cleanWord.length >= 2) {
       const phraseMatch = Object.values(vocabMap).find(v => {
         const target = v.albanian.toLowerCase();
@@ -249,11 +288,9 @@ export default function ImmersionReader() {
       }
     }
 
-    // 2. Local Deep Search (Bypass AI entirely if it's a known conjugation)
     let deepMatchParentId = null;
     let matchReasonStr = null;
 
-    // Check Verbs
     for (const c of allConjugations) {
       if ([c.une, c.ti, c.ai_ajo, c.ne, c.ju, c.ata_ato].some((v: any) => v && v.toLowerCase() === cleanWord)) {
         deepMatchParentId = c.vocab_id;
@@ -262,7 +299,6 @@ export default function ImmersionReader() {
       }
     }
     
-    // Check Nouns
     if (!deepMatchParentId) {
       for (const n of allNouns) {
         if ([n.indef_sg, n.def_sg, n.indef_pl, n.def_pl].some((v: any) => v && v.toLowerCase() === cleanWord)) {
@@ -273,7 +309,6 @@ export default function ImmersionReader() {
       }
     }
 
-    // Check Adjectives
     if (!deepMatchParentId) {
       for (const a of allAdjectives) {
         if ([a.masc_sg, a.fem_sg, a.masc_pl, a.fem_pl].some((v: any) => v && v.toLowerCase() === cleanWord)) {
@@ -284,7 +319,6 @@ export default function ImmersionReader() {
       }
     }
 
-    // If we found a deep match locally, pop open the grammar modal and highlight it!
     if (deepMatchParentId) {
       const parentVocab = Object.values(vocabMap).find(v => v.id === deepMatchParentId);
       if (parentVocab) {
@@ -293,7 +327,6 @@ export default function ImmersionReader() {
       }
     }
 
-    // 3. Fallback: Quick Define API Pipeline
     setModalWord({ albanian: cleanWord, isLoadingTemp: true });
 
     if (isDemoMode) {
@@ -418,7 +451,7 @@ export default function ImmersionReader() {
 
   return (
     <main className="min-h-[100dvh] bg-[#fafafa] p-4 sm:p-8 pt-8 sm:pt-12 pb-[calc(env(safe-area-inset-bottom)+6rem)] relative overflow-x-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-gradient-to-br from-indigo-100/40 via-purple-50/20 to-fuchsia-100/40 z-0 pointer-events-none"></div>
+      <div className="fixed inset-0 w-full h-full bg-gradient-to-br from-indigo-100/40 via-purple-50/20 to-fuchsia-100/40 z-0 pointer-events-none"></div>
 
       {isDemoMode && (
         <div className="fixed top-4 left-4 z-[400] bg-slate-800 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-slate-600 flex items-center gap-2">
@@ -438,7 +471,6 @@ export default function ImmersionReader() {
 
       <div className="max-w-4xl mx-auto w-full z-10 relative">
         
-        {/* --- STATE 1: THE STORY CATALOG --- */}
         {!currentStory && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <header className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
@@ -523,19 +555,37 @@ export default function ImmersionReader() {
           </div>
         )}
 
-        {/* --- STATE 2: THE READER VIEW --- */}
         {currentStory && (
           <div className="animate-in fade-in zoom-in-[0.98] duration-300">
-            <button 
-              onClick={() => handleSetCurrentStory(null)} 
-              className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-600 font-bold text-sm mb-6 transition-colors bg-white/60 px-4 py-2 rounded-full border border-white shadow-sm"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-              Back to Library
-            </button>
+            <div className="flex justify-between items-center mb-6">
+               <button 
+                 onClick={() => handleSetCurrentStory(null)} 
+                 className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-600 font-bold text-sm transition-colors bg-white/60 px-4 py-2 rounded-full border border-white shadow-sm"
+               >
+                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                 Back
+               </button>
+               
+               {/* NEW: Play Full Story Button */}
+               <button 
+                 onClick={toggleStoryAudio} 
+                 className={`inline-flex items-center gap-2 font-bold text-sm px-4 py-2 rounded-full border shadow-sm transition-colors ${isSpeakingStory ? 'bg-fuchsia-100 text-fuchsia-600 border-fuchsia-200 animate-pulse' : 'bg-white/60 text-slate-500 hover:text-fuchsia-500 border-white'}`}
+               >
+                 {isSpeakingStory ? (
+                   <>
+                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                     Stop Audio
+                   </>
+                 ) : (
+                   <>
+                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                     Read Aloud
+                   </>
+                 )}
+               </button>
+            </div>
 
             <div className="space-y-6">
-              {/* The Reading Pane */}
               <article 
                 ref={readerRef}
                 className="bg-white p-6 sm:p-12 rounded-[2.5rem] border-2 border-slate-100 shadow-md relative transform-gpu"
@@ -549,7 +599,6 @@ export default function ImmersionReader() {
                 </div>
               </article>
 
-              {/* The English Translation Toggle */}
               <details className="bg-slate-100/80 backdrop-blur-md rounded-[2.5rem] border-2 border-white shadow-sm group">
                 <summary className="px-6 sm:px-8 py-5 sm:py-6 cursor-pointer font-black text-slate-500 hover:text-fuchsia-500 transition-colors list-none flex justify-between items-center outline-none">
                   Show English Translation
@@ -570,20 +619,29 @@ export default function ImmersionReader() {
       {/* FLOATING EXPLAIN TOOLTIP */}
       {tooltipPos && !isExplaining && !explanation && (
         <div 
-          className="absolute z-[100] animate-in fade-in zoom-in-95 duration-200"
+          className="absolute z-[100] animate-in fade-in zoom-in-95 duration-200 flex"
           style={{ 
             left: `${tooltipPos.x}px`, 
             top: `${tooltipPos.y}px`, 
             transform: 'translate(-50%, -100%)' 
           }}
         >
-          <button 
-            onClick={handleExplainHighlight}
-            className="bg-slate-900 text-white font-black text-sm px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 hover:bg-fuchsia-500 transition-colors pointer-events-auto"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="12" x2="2" y2="12" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></svg>
-            Explain
-          </button>
+          {/* NEW: Shadowing button inside the tooltip! */}
+          <div className="bg-slate-900 rounded-xl shadow-xl flex items-center overflow-hidden pointer-events-auto">
+             <button 
+               onClick={(e) => speakText(selectionText, e)}
+               className="text-white hover:text-fuchsia-400 font-black text-sm px-4 py-2.5 flex items-center gap-2 transition-colors border-r border-slate-700"
+             >
+               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+             </button>
+             <button 
+               onClick={handleExplainHighlight}
+               className="text-white hover:text-fuchsia-400 font-black text-sm px-4 py-2.5 flex items-center gap-2 transition-colors"
+             >
+               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="12" x2="2" y2="12" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></svg>
+               Explain
+             </button>
+          </div>
           <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[8px] border-l-transparent border-r-transparent border-t-slate-900 absolute left-1/2 -bottom-2 -translate-x-1/2"></div>
         </div>
       )}
