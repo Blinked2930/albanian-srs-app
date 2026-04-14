@@ -399,11 +399,9 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-[#fafafa] flex flex-col items-center p-4 sm:p-8 relative overflow-x-hidden pb-12">
+    <main className="min-h-[100dvh] bg-[#fafafa] flex flex-col items-center p-4 sm:p-8 pt-8 sm:pt-12 relative overflow-x-hidden pb-[calc(env(safe-area-inset-bottom)+6rem)]">
       <style dangerouslySetInnerHTML={{__html: `@keyframes floatBreathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.03); } } .animate-float-breathe { animation: floatBreathe 5s ease-in-out infinite; }`}} />
       
-      <div className="fixed inset-0 w-full h-full bg-gradient-to-br from-pink-100/40 via-purple-50/20 to-indigo-100/40 z-0 pointer-events-none"></div>
-
       {isDemoMode && (
         <div className="fixed top-4 left-4 z-[400] bg-slate-800 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-slate-600 flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
@@ -420,7 +418,7 @@ export default function Home() {
         </div>
       )}
 
-      <div className="max-w-5xl w-full z-10 relative pt-4 sm:pt-8">
+      <div className="max-w-5xl w-full z-10 relative">
         <div className="text-center z-10 mb-8 sm:mb-12 flex flex-col items-center">
           <div className="animate-float-breathe inline-flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 bg-white/80 backdrop-blur-xl rounded-[1.5rem] sm:rounded-[2rem] shadow-[0_8px_32px_rgba(255,182,193,0.3)] mb-4 text-pink-500 border-2 border-white transition-all">
             <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="sm:scale-110"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
