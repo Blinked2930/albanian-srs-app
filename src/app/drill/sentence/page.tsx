@@ -38,6 +38,9 @@ export default function SentenceDrill() {
   const [showTarget, setShowTarget] = useState(false);
   const [showGhostModal, setShowGhostModal] = useState(false);
 
+  // NEW: Audio Ref for stopping audio if needed
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   // --- PERSISTENCE: Save State ---
   useEffect(() => {
     if (phase !== "loading") {
@@ -48,7 +51,12 @@ export default function SentenceDrill() {
 
   // Stop audio if user leaves the page
   useEffect(() => {
-    return () => { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); };
+    return () => { 
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      }
+    };
   }, []);
 
   useEffect(() => { loadData(); }, []);
@@ -103,18 +111,33 @@ export default function SentenceDrill() {
     }
   }
 
-  // --- NATIVE TEXT TO SPEECH ---
-  const speakText = (text: string, e?: React.MouseEvent) => {
+  // --- AZURE TEXT TO SPEECH ---
+  const speakText = async (text: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (!('speechSynthesis' in window)) {
-      alert("Text-to-speech not supported in this browser.");
-      return;
+    
+    try {
+      // Stop any currently playing audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+
+      if (!res.ok) throw new Error('Failed to fetch audio');
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      audioRef.current = new Audio(url);
+      audioRef.current.play();
+
+    } catch (error) {
+      console.error("Audio playback error:", error);
+      alert("Failed to play audio. Check your Azure keys!");
     }
-    window.speechSynthesis.cancel(); 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'sq-AL';
-    utterance.rate = 0.85; // Slightly slower for easier shadowing
-    window.speechSynthesis.speak(utterance);
   };
 
   const handleGenerateSentences = async () => {
@@ -152,7 +175,7 @@ export default function SentenceDrill() {
   }
 
   function pickAndSetPrompt(vocab: any[]) {
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel(); // Stop audio on next
+    if (audioRef.current) audioRef.current.pause(); // Stop audio on next
     const word = pickDueWord(vocab);
     if (!word) { setCurrentPrompt(null); setCaughtUp(true); return; }
     setCaughtUp(false);
@@ -301,7 +324,7 @@ export default function SentenceDrill() {
     setFeedback({ score, expected: currentPrompt.expected, promptId: currentPrompt.promptId });
     setShowTarget(true); updateMastery(currentPrompt, score);
     
-    // Auto-play the correct sentence for shadowing if they got it right (or wrong, so they can hear the fix)
+    // Auto-play the correct sentence using Azure!
     const fullAlbanianSentence = currentPrompt.blanked_albanian.replace("___", currentPrompt.expected);
     speakText(fullAlbanianSentence);
 
@@ -492,7 +515,6 @@ export default function SentenceDrill() {
                        )}
                     </div>
 
-                    {/* NEW: SHADOWING BOX */}
                     <div className="mt-4 sm:mt-4 pt-4 sm:pt-4 border-t border-slate-200/50">
                       <div className="flex justify-between items-start mb-2">
                         <p className="text-slate-400 font-bold text-[11px] uppercase tracking-wider">Shadowing</p>

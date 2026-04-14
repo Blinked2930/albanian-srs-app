@@ -45,14 +45,20 @@ export default function ImmersionReader() {
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isExplaining, setIsExplaining] = useState(false);
 
-  // --- NEW: Audio States ---
+  // --- NEW: Azure Audio States & Refs ---
   const [isSpeakingStory, setIsSpeakingStory] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const readerRef = useRef<HTMLDivElement>(null);
 
   // Stop audio if user leaves the page
   useEffect(() => {
-    return () => { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); };
+    return () => { 
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -62,8 +68,8 @@ export default function ImmersionReader() {
   // --- STATE MEMORY: Save active story and scroll position ---
   const handleSetCurrentStory = (story: Story | null) => {
     setCurrentStory(story);
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
       setIsSpeakingStory(false);
     }
     
@@ -123,36 +129,67 @@ export default function ImmersionReader() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // --- NATIVE TEXT TO SPEECH ---
-  const speakText = (text: string, e?: React.MouseEvent) => {
+  // --- AZURE TEXT TO SPEECH ---
+  const speakText = async (text: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (!('speechSynthesis' in window)) {
-      showToast("Audio not supported on this browser.", "🔇");
-      return;
+    
+    try {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+
+      if (!res.ok) throw new Error('Failed to fetch audio');
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      audioRef.current = new Audio(url);
+      audioRef.current.play();
+
+    } catch (error) {
+      console.error("Audio playback error:", error);
+      showToast("Failed to play audio. Check Azure keys.", "🔇");
     }
-    window.speechSynthesis.cancel(); 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'sq-AL';
-    utterance.rate = 0.85; 
-    window.speechSynthesis.speak(utterance);
   };
 
-  const toggleStoryAudio = () => {
-    if (!('speechSynthesis' in window)) {
-      showToast("Audio not supported on this browser.", "🔇");
-      return;
-    }
-    if (isSpeakingStory) {
-      window.speechSynthesis.cancel();
+  const toggleStoryAudio = async () => {
+    if (isSpeakingStory && audioRef.current) {
+      audioRef.current.pause();
       setIsSpeakingStory(false);
-    } else if (currentStory) {
-      const fullText = `${currentStory.title_albanian}. ${currentStory.content_albanian.replace(/\*/g, '')}`;
-      const utterance = new SpeechSynthesisUtterance(fullText);
-      utterance.lang = 'sq-AL';
-      utterance.rate = 0.85;
-      utterance.onend = () => setIsSpeakingStory(false);
-      window.speechSynthesis.speak(utterance);
+      return;
+    } 
+    
+    if (currentStory) {
       setIsSpeakingStory(true);
+      try {
+        const fullText = `${currentStory.title_albanian}. ${currentStory.content_albanian.replace(/\*/g, '')}`;
+        
+        const res = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: fullText })
+        });
+
+        if (!res.ok) throw new Error('Failed to fetch audio');
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        
+        if (audioRef.current) audioRef.current.pause();
+        audioRef.current = new Audio(url);
+        audioRef.current.onended = () => setIsSpeakingStory(false);
+        audioRef.current.play();
+        
+      } catch (error) {
+        console.error("Audio playback error:", error);
+        setIsSpeakingStory(false);
+        showToast("Failed to load story audio.", "🔇");
+      }
     }
   };
 
@@ -566,7 +603,6 @@ export default function ImmersionReader() {
                  Back
                </button>
                
-               {/* NEW: Play Full Story Button */}
                <button 
                  onClick={toggleStoryAudio} 
                  className={`inline-flex items-center gap-2 font-bold text-sm px-4 py-2 rounded-full border shadow-sm transition-colors ${isSpeakingStory ? 'bg-fuchsia-100 text-fuchsia-600 border-fuchsia-200 animate-pulse' : 'bg-white/60 text-slate-500 hover:text-fuchsia-500 border-white'}`}
@@ -626,7 +662,6 @@ export default function ImmersionReader() {
             transform: 'translate(-50%, -100%)' 
           }}
         >
-          {/* NEW: Shadowing button inside the tooltip! */}
           <div className="bg-slate-900 rounded-xl shadow-xl flex items-center overflow-hidden pointer-events-auto">
              <button 
                onClick={(e) => speakText(selectionText, e)}
