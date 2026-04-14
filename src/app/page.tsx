@@ -7,7 +7,8 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, 
 import { supabase, isDemoMode } from "@/lib/supabaseClient";
 
 interface ChartData { name: string; avgScore: number; wordsReviewed: number; }
-interface TimeLogData { name: string; immersion: number; drills: number; total: number; }
+// UPDATED: Now splitting out the explicit activity types
+interface TimeLogData { name: string; immersion: number; word_drill: number; sentence_drill: number; cram_drill: number; total: number; }
 interface HeatmapDay { date: string; active: boolean; intensity: number; }
 interface GrammarMetric { dimension_type: string; dimension_value: string; mastery_score: number; }
 interface KPIState { totalWords: number; globalMastery: number; activeStreak: number; dueToday: number; addedThisWeek: number; }
@@ -21,7 +22,7 @@ export default function Home() {
   const [grammarPerformance, setGrammarPerformance] = useState<GrammarMetric[]>([]);
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
 
-  // --- NEW: Time Tracking States ---
+  // --- Time Tracking States ---
   const [timeChartData, setTimeChartData] = useState<TimeLogData[]>([]);
   const [heatmapData, setHeatmapData] = useState<HeatmapDay[]>([]);
   const [totalTimeThisWeek, setTotalTimeThisWeek] = useState(0);
@@ -126,23 +127,27 @@ export default function Home() {
 
       // 2. Setup Time Horizons
       const today = new Date();
-      const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(today.getDate() - 6);
       const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(today.getDate() - 29);
       
+      // Calculate exactly when THIS week's Monday started
+      const currentDayOfWeek = today.getDay(); // 0 is Sunday, 1 is Monday
+      const daysSinceMonday = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
+      const mondayThisWeek = new Date(today);
+      mondayThisWeek.setDate(today.getDate() - daysSinceMonday);
+      mondayThisWeek.setHours(0, 0, 0, 0);
+
       // 3. Fetch Activity Logs (For Heatmap & Time Chart)
       const { data: activityLogs } = await supabase.from('activity_logs')
         .select('activity_type, duration_seconds, created_at')
         .gte('created_at', thirtyDaysAgo.toISOString());
 
-      // --- Build Time Chart (Last 7 Days) ---
-      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const aggregatedTime: Record<string, { immersion: number; drills: number }> = {};
+      // --- Build Time Chart (Fixed: Mon -> Sun) ---
+      const fixedDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const aggregatedTime: Record<string, { immersion: number; word_drill: number; sentence_drill: number; cram_drill: number }> = {};
       
-      // Initialize last 7 days to 0
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(); d.setDate(today.getDate() - i);
-        aggregatedTime[days[d.getDay()]] = { immersion: 0, drills: 0 };
-      }
+      fixedDays.forEach(day => {
+        aggregatedTime[day] = { immersion: 0, word_drill: 0, sentence_drill: 0, cram_drill: 0 };
+      });
 
       let totalWeekMinutes = 0;
 
@@ -157,7 +162,7 @@ export default function Home() {
         activityLogs.forEach((log: any) => {
           const logDate = new Date(log.created_at);
           const dateString = logDate.toISOString().split('T')[0];
-          const dayName = days[logDate.getDay()];
+          const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][logDate.getDay()];
           const durationMinutes = log.duration_seconds / 60;
 
           // Add to Heatmap
@@ -165,12 +170,16 @@ export default function Home() {
              aggregatedHeatmap[dateString] += durationMinutes;
           }
 
-          // Add to Time Chart (only if within last 7 days)
-          if (logDate >= sevenDaysAgo && aggregatedTime[dayName]) {
+          // Add to Time Chart (only if it happened THIS week, >= Monday)
+          if (logDate >= mondayThisWeek && aggregatedTime[dayName]) {
             if (log.activity_type === 'immersion') {
                aggregatedTime[dayName].immersion += durationMinutes;
-            } else {
-               aggregatedTime[dayName].drills += durationMinutes;
+            } else if (log.activity_type === 'word_drill') {
+               aggregatedTime[dayName].word_drill += durationMinutes;
+            } else if (log.activity_type === 'sentence_drill') {
+               aggregatedTime[dayName].sentence_drill += durationMinutes;
+            } else if (log.activity_type === 'cram_drill') {
+               aggregatedTime[dayName].cram_drill += durationMinutes;
             }
             totalWeekMinutes += durationMinutes;
           }
@@ -179,11 +188,14 @@ export default function Home() {
 
       setTotalTimeThisWeek(Math.round(totalWeekMinutes));
       
-      const finalTimeChartData: TimeLogData[] = Object.keys(aggregatedTime).map(key => ({
+      // Map it in explicit Mon-Sun order
+      const finalTimeChartData: TimeLogData[] = fixedDays.map(key => ({
         name: key, 
         immersion: Number(aggregatedTime[key].immersion.toFixed(1)),
-        drills: Number(aggregatedTime[key].drills.toFixed(1)),
-        total: Number((aggregatedTime[key].immersion + aggregatedTime[key].drills).toFixed(1))
+        word_drill: Number(aggregatedTime[key].word_drill.toFixed(1)),
+        sentence_drill: Number(aggregatedTime[key].sentence_drill.toFixed(1)),
+        cram_drill: Number(aggregatedTime[key].cram_drill.toFixed(1)),
+        total: Number((aggregatedTime[key].immersion + aggregatedTime[key].word_drill + aggregatedTime[key].sentence_drill + aggregatedTime[key].cram_drill).toFixed(1))
       }));
       setTimeChartData(finalTimeChartData);
 
@@ -195,24 +207,32 @@ export default function Home() {
       setHeatmapData(finalHeatmapData);
 
 
-      // 4. Fetch Review Logs (For Accuracy Trend)
-      const { data: logData } = await supabase.from('review_logs').select('vocab_id, score, created_at').gte('created_at', sevenDaysAgo.toISOString()).order('created_at', { ascending: true });
+      // 4. Fetch Review Logs (For Accuracy Trend - Also snapped to Mon-Sun)
+      const { data: logData } = await supabase.from('review_logs')
+        .select('vocab_id, score, created_at')
+        .gte('created_at', mondayThisWeek.toISOString())
+        .order('created_at', { ascending: true });
+        
       const aggregatedAccuracy: Record<string, { count: number; totalScore: number }> = {};
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(); d.setDate(today.getDate() - i);
-        aggregatedAccuracy[days[d.getDay()]] = { count: 0, totalScore: 0 };
-      }
+      fixedDays.forEach(day => {
+        aggregatedAccuracy[day] = { count: 0, totalScore: 0 };
+      });
       
       if (logData) {
         setRecentLogs(logData);
         logData.forEach((log: any) => {
-          const dayName = days[new Date(log.created_at).getDay()];
-          if (aggregatedAccuracy[dayName]) { aggregatedAccuracy[dayName].count += 1; aggregatedAccuracy[dayName].totalScore += log.score; }
+          const logDate = new Date(log.created_at);
+          const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][logDate.getDay()];
+          if (aggregatedAccuracy[dayName]) { 
+            aggregatedAccuracy[dayName].count += 1; 
+            aggregatedAccuracy[dayName].totalScore += log.score; 
+          }
         });
       }
       
-      const finalAccuracyChartData: ChartData[] = Object.keys(aggregatedAccuracy).map(key => ({
-        name: key, wordsReviewed: aggregatedAccuracy[key].count,
+      const finalAccuracyChartData: ChartData[] = fixedDays.map(key => ({
+        name: key, 
+        wordsReviewed: aggregatedAccuracy[key].count,
         avgScore: aggregatedAccuracy[key].count > 0 ? Number((aggregatedAccuracy[key].totalScore / aggregatedAccuracy[key].count).toFixed(2)) : 0
       }));
       setChartData(finalAccuracyChartData);
@@ -382,7 +402,6 @@ export default function Home() {
     <main className="min-h-screen bg-[#fafafa] flex flex-col items-center p-4 sm:p-8 relative overflow-x-hidden pb-12">
       <style dangerouslySetInnerHTML={{__html: `@keyframes floatBreathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.03); } } .animate-float-breathe { animation: floatBreathe 5s ease-in-out infinite; }`}} />
       
-      {/* FIX: Changed absolute to fixed and added inset-0 to prevent the gradient from stretching the page height */}
       <div className="fixed inset-0 w-full h-full bg-gradient-to-br from-pink-100/40 via-purple-50/20 to-indigo-100/40 z-0 pointer-events-none"></div>
 
       {isDemoMode && (
@@ -438,7 +457,6 @@ export default function Home() {
                 <div className="bg-white/80 backdrop-blur-xl p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border-2 border-white shadow-sm flex flex-col items-center justify-center transition-transform hover:scale-[1.02] relative overflow-hidden">
                   <h3 className="text-[10px] sm:text-xs uppercase tracking-widest text-emerald-400 mb-2 font-black">Consistency</h3>
                   
-                  {/* NEW: 30 Day Heatmap Grid */}
                   <div className="w-full flex justify-center px-2">
                      <div className="grid grid-flow-col grid-rows-3 gap-1 h-[42px] sm:h-[48px] w-full max-w-[150px]">
                         {heatmapData.map((day, i) => {
@@ -512,7 +530,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* --- NEW: Analytics Row --- */}
+            {/* --- Analytics Row --- */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
               
               {/* 1. Time Block Chart */}
@@ -533,9 +551,24 @@ export default function Home() {
                     <BarChart data={timeChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <XAxis dataKey="name" stroke="#94a3b8" axisLine={false} tickLine={false} dy={10} tick={{fontWeight: 'bold', fontSize: 10}} />
                       <YAxis stroke="#94a3b8" axisLine={false} tickLine={false} tick={{fontWeight: 'bold', fontSize: 10}} />
-                      <Tooltip cursor={{fill: '#f8fafc'}} formatter={(value: any, name: any) => [`${value} min`, name === 'drills' ? 'Active Output' : 'Passive Input']} contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #f1f5f9', borderRadius: '16px', color: '#334155', fontWeight: 'bold' }} itemStyle={{ fontWeight: '900' }} />
-                      <Bar dataKey="drills" stackId="a" fill="#6366f1" radius={[0, 0, 4, 4]} />
-                      <Bar dataKey="immersion" stackId="a" fill="#d946ef" radius={[4, 4, 0, 0]} />
+                      <Tooltip 
+                        cursor={{fill: '#f8fafc'}} 
+                        formatter={(value: any, name: any) => {
+                          const labels: Record<string, string> = {
+                            word_drill: 'Word Drill',
+                            sentence_drill: 'Sentence Drill',
+                            cram_drill: 'Cram Drill',
+                            immersion: 'Immersion Story'
+                          };
+                          return [`${value} min`, labels[name] || name];
+                        }} 
+                        contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #f1f5f9', borderRadius: '16px', color: '#334155', fontWeight: 'bold' }} 
+                        itemStyle={{ fontWeight: '900' }} 
+                      />
+                      <Bar dataKey="word_drill" stackId="a" fill="#6366f1" /> 
+                      <Bar dataKey="sentence_drill" stackId="a" fill="#10b981" /> 
+                      <Bar dataKey="cram_drill" stackId="a" fill="#f43f5e" />
+                      <Bar dataKey="immersion" stackId="a" fill="#d946ef" /> 
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
