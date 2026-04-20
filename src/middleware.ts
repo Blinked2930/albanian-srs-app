@@ -2,33 +2,15 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  // --- COOKIE CHECK REMOVED ---
+  // iOS Safari aggressively deletes client-side cookies in PWAs.
+  // If we check for 'srs_auth_token' here, it will falsely kick you to /login.
+  // Instead, we let our SessionGuard component handle auth on the client side 
+  // where it can safely read the highly-persistent localStorage token.
 
-  // --- DEMO MODE VIP BYPASS ---
-  // If the Vercel environment variable is set to true, skip all auth checks entirely.
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
-    return NextResponse.next();
-  }
-
-  // Allow unrestricted access to the login page and the login API
-  if (pathname === '/login' || pathname === '/api/auth/login') {
-    return NextResponse.next();
-  }
-
-  // Check for the authentication cookie
-  const authToken = req.cookies.get('srs_auth_token')?.value;
-
-  if (authToken === 'authenticated') {
-    return NextResponse.next();
-  }
-
-  // If not authenticated, redirect to the login page
-  const loginUrl = new URL('/login', req.url);
-  return NextResponse.redirect(loginUrl);
+  return NextResponse.next();
 }
 
-// This config tells the middleware to protect EVERY page, 
-// but ignore static files like images and Next.js background scripts so it doesn't crash.
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
-}; 
+};

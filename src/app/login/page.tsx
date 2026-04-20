@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, isDemoMode } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -11,13 +11,27 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // On mount, check if we saved an email from a previous login
   useEffect(() => {
+    // 1. SMART CHECK: If you hit this page but Supabase already has your token in local storage, 
+    // instantly push you to the dashboard without making you log in again.
+    const checkExistingSession = async () => {
+      if (isDemoMode) {
+        router.push("/");
+        return;
+      }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        router.push("/");
+      }
+    };
+    checkExistingSession();
+
+    // 2. Load saved email for convenience
     const savedEmail = localStorage.getItem("vocab_email");
     if (savedEmail) {
       setEmail(savedEmail);
     }
-  }, []);
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +39,6 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // 1. Ask our master Supabase client to verify your credentials
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -37,15 +50,13 @@ export default function LoginPage() {
         return;
       }
 
-      // 2. Success! Save email permanently so you don't have to retype it
       localStorage.setItem("vocab_email", email);
       
-      // 3. Drop the VIP cookie so your Next.js middleware lets you through
+      // We still set this just in case, but it no longer controls the app!
       document.cookie = "srs_auth_token=authenticated; path=/; max-age=31536000";
       
-      // 4. Redirect to homepage
+      // Push to homepage (removed router.refresh() so the PWA doesn't flash white)
       router.push("/");
-      router.refresh();
     } catch (err) {
       setError("An error occurred during login. Please try again.");
     } finally {
@@ -55,9 +66,8 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      <div className="max-w-md w-full z-10 cutesy-glass p-8 md:p-10 rounded-[2.5rem] border-2 border-white/80 shadow-[0_12px_40px_rgba(255,182,193,0.3)] relative overflow-hidden">
+      <div className="max-w-md w-full z-10 cutesy-glass p-8 md:p-10 rounded-[2.5rem] border-2 border-white/80 shadow-[0_12px_40px_rgba(255,182,193,0.3)] relative overflow-hidden bg-white/60 backdrop-blur-xl">
         
-        {/* Soft pastel header border */}
         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-pink-300 via-purple-300 to-indigo-300 opacity-90"></div>
 
         <div className="text-center mb-8 pt-4">
