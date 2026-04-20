@@ -9,8 +9,12 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 // This creates ONE single instance of the client that survives page navigations
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: true, // Forces Supabase to save the login to local storage
-    autoRefreshToken: true, // Automatically keeps you logged in in the background
+    persistSession: true, 
+    autoRefreshToken: true, 
     detectSessionInUrl: true,
+    // explicitly tell iOS to use localStorage
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    // custom key so iOS doesn't accidentally wipe a generic 'supabase.auth.token'
+    storageKey: 'albanian-srs-pwa-token', 
   },
 });

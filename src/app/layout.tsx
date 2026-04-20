@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Quicksand } from "next/font/google";
 import "./globals.css";
 import BottomNav from "../components/BottomNav";
+import SessionGuard from "../components/SessionGuard";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,11 +48,13 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${quicksand.variable} antialiased bg-[#fafafa]`}
         suppressHydrationWarning
       >
-        {/* Dynamic padding perfectly sizes the gap for the bottom bar */}
-        <div className="pb-[calc(6rem+env(safe-area-inset-bottom))] min-h-[100dvh]">
-          {children}
-        </div>
-        <BottomNav />
+        <SessionGuard>
+          {/* Dynamic padding perfectly sizes the gap for the bottom bar */}
+          <div className="pb-[calc(6rem+env(safe-area-inset-bottom))] min-h-[100dvh]">
+            {children}
+          </div>
+          <BottomNav />
+        </SessionGuard>
       </body>
     </html>
   );
