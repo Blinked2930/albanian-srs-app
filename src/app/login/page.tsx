@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, isDemoMode } from "@/lib/supabaseClient";
+import InstallScreen from "@/components/InstallScreen";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -11,9 +12,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  // --- NEW: PWA Detection States ---
+  const [isPWA, setIsPWA] = useState(true); // Assume true initially to prevent flashing the install screen
+  const [hasBypassedInstall, setHasBypassedInstall] = useState(false);
+
   useEffect(() => {
-    // 1. SMART CHECK: If you hit this page but Supabase already has your token in local storage, 
-    // instantly push you to the dashboard without making you log in again.
+    // 1. SMART CHECK: Supabase Session
     const checkExistingSession = async () => {
       if (isDemoMode) {
         router.push("/");
@@ -31,6 +35,16 @@ export default function LoginPage() {
     if (savedEmail) {
       setEmail(savedEmail);
     }
+
+    // --- 3. NEW: Detect if we are running as a standalone PWA ---
+    const checkIsPWA = () => {
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+      // @ts-ignore - iOS specific check
+      const isIOSStandalone = window.navigator.standalone === true;
+      setIsPWA(isStandalone || isIOSStandalone);
+    };
+    
+    checkIsPWA();
   }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -51,11 +65,7 @@ export default function LoginPage() {
       }
 
       localStorage.setItem("vocab_email", email);
-      
-      // We still set this just in case, but it no longer controls the app!
       document.cookie = "srs_auth_token=authenticated; path=/; max-age=31536000";
-      
-      // Push to homepage (removed router.refresh() so the PWA doesn't flash white)
       router.push("/");
     } catch (err) {
       setError("An error occurred during login. Please try again.");
@@ -64,9 +74,15 @@ export default function LoginPage() {
     }
   };
 
+  // --- NEW: Intercept the page and show the Install Screen if needed ---
+  if (!isPWA && !hasBypassedInstall) {
+    return <InstallScreen onBypass={() => setHasBypassedInstall(true)} />;
+  }
+
+  // Otherwise, show the normal Login Form!
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      <div className="max-w-md w-full z-10 cutesy-glass p-8 md:p-10 rounded-[2.5rem] border-2 border-white/80 shadow-[0_12px_40px_rgba(255,182,193,0.3)] relative overflow-hidden bg-white/60 backdrop-blur-xl">
+      <div className="max-w-md w-full z-10 p-8 md:p-10 rounded-[2.5rem] border-2 border-white/80 shadow-[0_12px_40px_rgba(255,182,193,0.3)] relative overflow-hidden bg-white/60 backdrop-blur-xl">
         
         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-pink-300 via-purple-300 to-indigo-300 opacity-90"></div>
 
