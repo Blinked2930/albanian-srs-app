@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, isDemoMode } from "@/lib/supabaseClient";
-import InstallScreen from "@/components/InstallScreen";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -12,12 +11,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // --- NEW: PWA Detection States ---
-  const [isPWA, setIsPWA] = useState(true); // Assume true initially to prevent flashing the install screen
-  const [hasBypassedInstall, setHasBypassedInstall] = useState(false);
-
   useEffect(() => {
-    // 1. SMART CHECK: Supabase Session
     const checkExistingSession = async () => {
       if (isDemoMode) {
         router.push("/");
@@ -30,21 +24,10 @@ export default function LoginPage() {
     };
     checkExistingSession();
 
-    // 2. Load saved email for convenience
     const savedEmail = localStorage.getItem("vocab_email");
     if (savedEmail) {
       setEmail(savedEmail);
     }
-
-    // --- 3. NEW: Detect if we are running as a standalone PWA ---
-    const checkIsPWA = () => {
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-      // @ts-ignore - iOS specific check
-      const isIOSStandalone = window.navigator.standalone === true;
-      setIsPWA(isStandalone || isIOSStandalone);
-    };
-    
-    checkIsPWA();
   }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -74,12 +57,6 @@ export default function LoginPage() {
     }
   };
 
-  // --- NEW: Intercept the page and show the Install Screen if needed ---
-  if (!isPWA && !hasBypassedInstall) {
-    return <InstallScreen onBypass={() => setHasBypassedInstall(true)} />;
-  }
-
-  // Otherwise, show the normal Login Form!
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
       <div className="max-w-md w-full z-10 p-8 md:p-10 rounded-[2.5rem] border-2 border-white/80 shadow-[0_12px_40px_rgba(255,182,193,0.3)] relative overflow-hidden bg-white/60 backdrop-blur-xl">
