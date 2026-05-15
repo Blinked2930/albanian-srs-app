@@ -34,7 +34,10 @@ export default function SentenceDrill() {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const actionLock = useRef(false);
-  const [isGenerating, setIsGenerating] = useState(false);
+  
+  // --- NEW: Accept mode parameter and set specific loading state ---
+  const [generatingMode, setGeneratingMode] = useState<'words' | 'phrases' | null>(null);
+  
   const [showTarget, setShowTarget] = useState(false);
   const [showGhostModal, setShowGhostModal] = useState(false);
 
@@ -71,7 +74,7 @@ export default function SentenceDrill() {
         const twoWeeksAgo = new Date();
         twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
         
-        // --- NEW: Shield permanent phrases from the 14-day auto-purge! ---
+        // --- Shield permanent phrases from the 14-day auto-purge! ---
         const { error: purgeError } = await supabase
             .from('sentences')
             .delete()
@@ -163,20 +166,24 @@ export default function SentenceDrill() {
     }
   };
 
-  const handleGenerateSentences = async () => {
+  const handleGenerateSentences = async (mode: 'words' | 'phrases') => {
     if (isDemoMode) {
       setShowGhostModal(true);
       return;
     }
-    setIsGenerating(true);
+    setGeneratingMode(mode);
     try {
-      const res = await fetch('/api/generate-sentences', { method: 'POST' });
+      const res = await fetch('/api/generate-sentences', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      });
       const data = await res.json();
       if (res.ok) { alert(data.message || "Sentences generated successfully!"); await loadData(); }
       else { alert("Error: " + (data.error || "Failed to generate sentences. Check console.")); }
     } catch (err) {
       console.error(err); alert("An error occurred while calling the sentence generator.");
-    } finally { setIsGenerating(false); }
+    } finally { setGeneratingMode(null); }
   };
 
   useEffect(() => {
@@ -421,19 +428,31 @@ export default function SentenceDrill() {
               {dueCount > 0 ? `${dueCount} ready for review` : `No sentences due`}
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center w-full max-w-lg">
+            {/* --- NEW: Split Generation UI --- */}
+            <div className="flex flex-col gap-3 justify-center w-full max-w-lg mt-2">
               <button onClick={startDrill} disabled={dbVocabRef.current.length === 0} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:scale-100 text-white font-black py-4 sm:py-5 rounded-[2rem] transition-all shadow-[0_8px_20px_rgba(16,185,129,0.3)] active:scale-95 text-lg sm:text-xl">
                 Start Session
               </button>
 
-              <button onClick={handleGenerateSentences} disabled={isGenerating} className="w-full bg-slate-50 hover:bg-slate-100 border-2 border-slate-200 text-slate-600 font-bold py-4 sm:py-5 rounded-[2rem] transition-colors flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 text-sm sm:text-base shadow-sm">
-                {isGenerating ? (
-                  <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin"></div>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" className="text-emerald-500 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" /></svg>
-                )}
-                {isGenerating ? "Generating..." : "Generate More"}
-              </button>
+              <div className="flex gap-3 w-full">
+                <button onClick={() => handleGenerateSentences('words')} disabled={generatingMode !== null} className="flex-1 bg-slate-50 hover:bg-slate-100 border-2 border-slate-200 text-slate-600 font-bold py-3.5 sm:py-4 rounded-[1.5rem] transition-colors flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 text-sm sm:text-base shadow-sm">
+                  {generatingMode === 'words' ? (
+                    <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin"></div>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" className="text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" /></svg>
+                  )}
+                  {generatingMode === 'words' ? "Generating..." : "+ Word Drills"}
+                </button>
+
+                <button onClick={() => handleGenerateSentences('phrases')} disabled={generatingMode !== null} className="flex-1 bg-indigo-50 hover:bg-indigo-100 border-2 border-indigo-200 text-indigo-600 font-bold py-3.5 sm:py-4 rounded-[1.5rem] transition-colors flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 text-sm sm:text-base shadow-sm">
+                  {generatingMode === 'phrases' ? (
+                    <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-indigo-300 border-t-indigo-500 rounded-full animate-spin"></div>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" className="text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4" /><path d="M12 18v4" /><path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" /></svg>
+                  )}
+                  {generatingMode === 'phrases' ? "Converting..." : "+ Phrase Drills"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
