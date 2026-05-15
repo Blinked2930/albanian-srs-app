@@ -113,7 +113,7 @@ export async function POST(request: Request) {
       ${promptInstructions}
     `;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
     const result = await model.generateContent(finalPrompt);
 
     const cleanJsonString = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();

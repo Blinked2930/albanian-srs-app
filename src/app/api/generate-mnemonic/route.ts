@@ -53,7 +53,7 @@ export async function POST(request: Request) {
             ENGLISH MEANING: "${english}"
         `;
 
-        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite-preview" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
         const result = await model.generateContent(finalPrompt);
 
         return NextResponse.json({ mnemonic: result.response.text() });
