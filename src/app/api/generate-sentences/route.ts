@@ -21,14 +21,21 @@ export async function POST(request: Request) {
 
     needsSentences.sort((a, b) => (a.mastery_score || 0) - (b.mastery_score || 0));
 
+    // --- NEW: Separate phrases from the rest so we can guarantee them a spot
+    const phrases = needsSentences.filter((v: any) => v.type === 'Phrase');
     const verbs = needsSentences.filter((v: any) => v.type === 'Verb' || v.type === 'Command');
-    const nonVerbs = needsSentences.filter((v: any) => v.type !== 'Verb' && v.type !== 'Command');
+    const nonVerbs = needsSentences.filter((v: any) => v.type !== 'Verb' && v.type !== 'Command' && v.type !== 'Phrase');
 
-    const targetVerbCount = Math.min(6, verbs.length);
+    // Reduced total batch to 8 to prevent Vercel 15-second timeout errors!
+    const targetPhraseCount = Math.min(2, phrases.length);
+    const targetVerbCount = Math.min(3, verbs.length);
+    const remainingSlots = 8 - targetPhraseCount - targetVerbCount;
+    
+    const selectedPhrases = phrases.slice(0, targetPhraseCount);
     const selectedVerbs = verbs.slice(0, targetVerbCount);
-    const selectedNonVerbs = nonVerbs.slice(0, 12 - targetVerbCount);
+    const selectedNonVerbs = nonVerbs.slice(0, remainingSlots);
 
-    const vocabToProcess = [...selectedVerbs, ...selectedNonVerbs].sort(() => 0.5 - Math.random());
+    const vocabToProcess = [...selectedPhrases, ...selectedVerbs, ...selectedNonVerbs].sort(() => 0.5 - Math.random());
 
     const { data: midTierVocab } = await supabase.from('vocab').select('albanian, english').gte('mastery_score', 0.4).lte('mastery_score', 0.8).limit(50);
     const getRandomMidTierWords = () => {
@@ -54,10 +61,16 @@ export async function POST(request: Request) {
     }
 
     const promptInstructions = vocabToProcess.map(v => {
-      const secondaryWords = getRandomMidTierWords();
-      let instruction = `- TARGET WORD: ${v.albanian} (English: ${v.english}, Type: ${v.type || 'Unknown'})`;
-      if (secondaryWords) instruction += `\n    -> SECONDARY GOAL: Try to naturally incorporate 1 or 2 of these review words: [${secondaryWords}]`;
-      return instruction;
+      // --- NEW: Different AI instructions for Phrases vs Words
+      if (v.type === 'Phrase') {
+        return `- TARGET PHRASE: "${v.albanian}" (English: "${v.english}", Type: Phrase)
+    -> ACTION: DO NOT write a new sentence. Use this exact phrase as the sentence. Pick the single most important or difficult word inside this phrase, blank it out with "___", and make that word the "target_albanian".`;
+      } else {
+        const secondaryWords = getRandomMidTierWords();
+        let instruction = `- TARGET WORD: ${v.albanian} (English: ${v.english}, Type: ${v.type || 'Unknown'})`;
+        if (secondaryWords) instruction += `\n    -> SECONDARY GOAL: Try to naturally incorporate 1 or 2 of these review words: [${secondaryWords}]`;
+        return instruction;
+      }
     }).join('\n\n');
 
     // Fetch the dynamic prompt from Supabase
@@ -69,13 +82,10 @@ export async function POST(request: Request) {
 
     if (promptError) console.warn("Supabase Error in Sentence API:", promptError);
 
-    // Log it to terminal
-    console.log("Fetched Sentence Prompt from DB:", promptData?.value);
-
     const basePrompt = promptData?.value || `
       You are an expert Albanian language curriculum designer. 
       The student is a Peace Corps Volunteer in Albania at the ACTFL Intermediate Low (CEFR A2) level.
-      I will provide a list of TARGET Albanian words. For each word, generate a highly contextual, everyday practice sentence suitable for an A2 speaker.
+      I will provide a list of TARGET items. For each item, generate a highly contextual, everyday practice sentence.
       
       RULES:
       1. Replace ONLY the TARGET Albanian word in the sentence with "___".
@@ -83,17 +93,18 @@ export async function POST(request: Request) {
       3. If I provide "SECONDARY GOAL" words, try to include them in the sentence for passive reading practice. Do NOT blank out the secondary words.
       4. The sentence context MUST provide enough clues to figure out the missing target word.
       5. Use simple, everyday A2 vocabulary for the rest of the sentence.
-      6. GRAMMAR TRACKING: You MUST identify the specific grammatical form of the TARGET word used in the sentence and output it using EXACTLY these strict formats:
+      6. PHRASES: If the item is marked as a Phrase, you must follow the ACTION instruction to use the exact phrase and blank out the most important word.
+      7. GRAMMAR TRACKING: You MUST identify the specific grammatical form of the blanked TARGET word used in the sentence and output it using EXACTLY these strict formats:
          - IF VERB: "grammar_type": "conjugation", "grammar_value": "{tense}:{pronoun}"
          - IF NOUN: "grammar_type": "noun_declension", "grammar_value": "{case}:{definiteness}:{plurality}"
          - IF ADJECTIVE: "grammar_type": "adjective_agreement", "grammar_value": "{gender}:{plurality}"
          - IF OTHER: "grammar_type": null, "grammar_value": null
-      7. Output STRICTLY in JSON array format. Do not include markdown blocks like \`\`\`json.
+      8. Output STRICTLY in JSON array format. Do not include markdown blocks like \`\`\`json.
       
       EXPECTED JSON FORMAT:
       [
         {
-          "albanian_word": "the exact TARGET albanian word from my list (dictionary form)",
+          "albanian_word": "the exact TARGET word or phrase from my list (exactly as provided)",
           "blanked_albanian": "Dje, unë ___ një mollë.",
           "target_albanian": "hëngra",
           "target_english": "ate",
@@ -109,7 +120,7 @@ export async function POST(request: Request) {
       
       ${grammarPrioritiesText}
       
-      Words to process:
+      Items to process:
       ${promptInstructions}
     `;
 
@@ -120,13 +131,21 @@ export async function POST(request: Request) {
     const generatedSentences = JSON.parse(cleanJsonString);
 
     const insertPayload = generatedSentences.map((aiSentence: any) => {
-      const parentVocab = vocabToProcess.find(v => v.albanian.toLowerCase() === aiSentence.albanian_word.toLowerCase());
+      // Find the parent vocab by exactly matching the string returned by AI
+      const parentVocab = vocabToProcess.find(v => v.albanian.trim().toLowerCase() === aiSentence.albanian_word.trim().toLowerCase());
+      
       return {
-        vocab_id: parentVocab?.id, grammar_type: aiSentence.grammar_type || null, grammar_value: aiSentence.grammar_value || null,
-        blanked_albanian: aiSentence.blanked_albanian, target_albanian: aiSentence.target_albanian,
-        target_english: aiSentence.target_english, english_translation: aiSentence.english_translation
+        vocab_id: parentVocab?.id, 
+        grammar_type: aiSentence.grammar_type || null, 
+        grammar_value: aiSentence.grammar_value || null,
+        blanked_albanian: aiSentence.blanked_albanian, 
+        target_albanian: aiSentence.target_albanian,
+        target_english: aiSentence.target_english, 
+        english_translation: aiSentence.english_translation,
+        // --- NEW: Shield phrases from the 14-day auto-purge ---
+        is_permanent: parentVocab?.type === 'Phrase' ? true : false
       };
-    }).filter((payload: any) => payload.vocab_id);
+    }).filter((payload: any) => payload.vocab_id); // Drop any that failed to match back to a parent ID
 
     const { error: insertError } = await supabase.from('sentences').insert(insertPayload);
     if (insertError) throw insertError;
