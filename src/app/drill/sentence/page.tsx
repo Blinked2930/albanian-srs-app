@@ -70,7 +70,14 @@ export default function SentenceDrill() {
       try {
         const twoWeeksAgo = new Date();
         twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-        const { error: purgeError } = await supabase.from('sentences').delete().lt('created_at', twoWeeksAgo.toISOString());
+        
+        // --- NEW: Shield permanent phrases from the 14-day auto-purge! ---
+        const { error: purgeError } = await supabase
+            .from('sentences')
+            .delete()
+            .lt('created_at', twoWeeksAgo.toISOString())
+            .eq('is_permanent', false);
+
         if (purgeError) console.error("Sentence Purge Failed:", purgeError);
       } catch (e) {
         console.error("Purge Exception:", e);
