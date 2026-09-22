@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { fetchAllRows } from '@/lib/supabaseClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,12 +13,17 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export async function POST(request: Request) {
   try {
-    let body = {};
+    let body: any = {};
     try { body = await request.json(); } catch(e) { }
     const mode = body.mode || 'words'; // 'words' | 'phrases'
 
-    const { data: allVocab, error: fetchError } = await supabase.from('vocab').select('id, albanian, english, type, mastery_score, sentences(id)');
-    if (fetchError) throw fetchError;
+    const { data: allVocab, error: fetchError } = await fetchAllRows(
+      'vocab',
+      'id, albanian, english, type, mastery_score, sentences(id)',
+      undefined,
+      supabase
+    );
+    if (fetchError || !allVocab) throw (fetchError || new Error("Failed to fetch vocabulary"));
 
     const needsSentences = allVocab.filter((v: any) => !v.sentences || v.sentences.length === 0);
     if (!needsSentences || needsSentences.length === 0) return NextResponse.json({ message: "All items currently have sentences!" });

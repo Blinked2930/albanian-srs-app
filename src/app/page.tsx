@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
-import { supabase, isDemoMode } from "@/lib/supabaseClient";
+import { supabase, isDemoMode, fetchAllRows } from "@/lib/supabaseClient";
 
 interface ChartData { name: string; avgScore: number; wordsReviewed: number; }
 interface TimeLogData { name: string; immersion: number; word_drill: number; sentence_drill: number; cram_drill: number; total: number; }
@@ -115,7 +115,7 @@ export default function Home() {
 
     try {
       // 1. Fetch Vocab & Grammer
-      const { data: vocabData } = await supabase.from('vocab').select('id, albanian, english, type, mastery_score, streak, next_review, created_at');
+      const { data: vocabData } = await fetchAllRows('vocab', 'id, albanian, english, type, mastery_score, streak, next_review, created_at');
       if (vocabData) processVocab(vocabData);
 
       const { data: groupData } = await supabase.from('cram_groups').select('*').order('created_at', { ascending: false });
@@ -136,9 +136,9 @@ export default function Home() {
       mondayThisWeek.setHours(0, 0, 0, 0);
 
       // 3. Fetch Activity Logs (For Heatmap & Time Chart)
-      const { data: activityLogs } = await supabase.from('activity_logs')
-        .select('activity_type, duration_seconds, created_at')
-        .gte('created_at', thirtyDaysAgo.toISOString());
+      const { data: activityLogs } = await fetchAllRows('activity_logs', 'activity_type, duration_seconds, created_at', {
+        filter: (q) => q.gte('created_at', thirtyDaysAgo.toISOString())
+      });
 
       // --- Build Time Chart (Fixed: Mon -> Sun) ---
       const fixedDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -207,10 +207,11 @@ export default function Home() {
 
 
       // 4. Fetch Review Logs (For Accuracy Trend - Also snapped to Mon-Sun)
-      const { data: logData } = await supabase.from('review_logs')
-        .select('vocab_id, score, created_at')
-        .gte('created_at', mondayThisWeek.toISOString())
-        .order('created_at', { ascending: true });
+      const { data: logData } = await fetchAllRows('review_logs', 'vocab_id, score, created_at', {
+        filter: (q) => q.gte('created_at', mondayThisWeek.toISOString()),
+        orderColumn: 'created_at',
+        ascending: true
+      });
         
       const aggregatedAccuracy: Record<string, { count: number; totalScore: number }> = {};
       fixedDays.forEach(day => {

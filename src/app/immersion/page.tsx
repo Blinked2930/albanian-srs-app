@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { supabase, isDemoMode } from "@/lib/supabaseClient";
+import { supabase, isDemoMode, fetchAllRows } from "@/lib/supabaseClient";
 import DictionaryModal from "@/components/DictionaryModal";
 import { useTimeTracker } from "@/hooks/useTimeTracker";
 
@@ -257,11 +257,11 @@ export default function ImmersionReader() {
     setLoading(true);
     try {
       const [storyRes, vocabRes, conjRes, nounRes, adjRes] = await Promise.all([
-        supabase.from("stories").select("*").order("created_at", { ascending: false }),
-        supabase.from("vocab").select("*"),
-        supabase.from("conjugations").select("*"),
-        supabase.from("noun_declensions").select("*"),
-        supabase.from("adjective_agreements").select("*")
+        fetchAllRows("stories", "*", { orderColumn: "created_at", ascending: false }),
+        fetchAllRows("vocab", "*"),
+        fetchAllRows("conjugations", "*"),
+        fetchAllRows("noun_declensions", "*"),
+        fetchAllRows("adjective_agreements", "*")
       ]);
 
       if (storyRes.data) {

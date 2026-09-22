@@ -11,7 +11,7 @@ import {
 } from "@/lib/logic";
 import grammarRules from "@/lib/grammar_rules.json";
 import DictionaryModal from "@/components/DictionaryModal";
-import { supabase, isDemoMode } from "@/lib/supabaseClient";
+import { supabase, isDemoMode, fetchAllRows } from "@/lib/supabaseClient";
 import { useTimeTracker } from "@/hooks/useTimeTracker";
 
 const TYPE_FILTERS = [
@@ -78,19 +78,19 @@ export default function WordDrill() {
 
   useEffect(() => {
     async function loadData() {
-      const { data: vocabData } = await supabase.from("vocab").select("*");
+      const { data: vocabData } = await fetchAllRows("vocab", "*");
       if (vocabData) { dbVocabRef.current = vocabData; setDbVocab(vocabData); }
       
-      const { data: metricsData } = await supabase.from("grammar_metrics").select("*");
+      const { data: metricsData } = await fetchAllRows("grammar_metrics", "*");
       if (metricsData) { grammarMetricsRef.current = metricsData; setGrammarMetrics(metricsData); }
       
-      const { data: conjData } = await supabase.from("conjugations").select("*");
+      const { data: conjData } = await fetchAllRows("conjugations", "*");
       if (conjData) { dbConjugationsRef.current = conjData; setDbConjugations(conjData); }
       
-      const { data: nounData } = await supabase.from("noun_declensions").select("*");
+      const { data: nounData } = await fetchAllRows("noun_declensions", "*");
       if (nounData) { dbNounsRef.current = nounData; setDbNouns(nounData); }
       
-      const { data: adjData } = await supabase.from("adjective_agreements").select("*");
+      const { data: adjData } = await fetchAllRows("adjective_agreements", "*");
       if (adjData) { dbAdjectivesRef.current = adjData; setDbAdjectives(adjData); }
       
       // --- PERSISTENCE: Rehydrate ---

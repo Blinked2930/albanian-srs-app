@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import DictionaryModal from "@/components/DictionaryModal";
-import { supabase, isDemoMode } from "@/lib/supabaseClient";
+import { supabase, isDemoMode, fetchAllRows } from "@/lib/supabaseClient";
 
 interface ReviewLog {
   score: number;
@@ -134,10 +134,10 @@ export default function ManageVocab() {
     setLoading(true);
     try {
       const [vocabRes, conjRes, nounRes, adjRes] = await Promise.all([
-        supabase.from("vocab").select("*, review_logs(score, created_at)").order("next_review", { ascending: true, nullsFirst: true }),
-        supabase.from("conjugations").select("*"),
-        supabase.from("noun_declensions").select("*"),
-        supabase.from("adjective_agreements").select("*")
+        fetchAllRows("vocab", "*, review_logs(score, created_at)", { orderColumn: "next_review", ascending: true, nullsFirst: true }),
+        fetchAllRows("conjugations", "*"),
+        fetchAllRows("noun_declensions", "*"),
+        fetchAllRows("adjective_agreements", "*")
       ]);
 
       if (vocabRes.error) console.error("Error fetching vocab:", vocabRes.error);

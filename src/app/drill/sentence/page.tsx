@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { evaluateAnswer, scheduleSRS, pickDueWord, updateGlobalGrammarStat } from "@/lib/logic";
 import DictionaryModal from "@/components/DictionaryModal";
-import { supabase, isDemoMode } from "@/lib/supabaseClient";
+import { supabase, isDemoMode, fetchAllRows } from "@/lib/supabaseClient";
 import { useTimeTracker } from "@/hooks/useTimeTracker";
 
 export default function SentenceDrill() {
@@ -87,12 +87,13 @@ export default function SentenceDrill() {
       }
     }
 
-    const { data: metricsData } = await supabase.from("grammar_metrics").select("*");
+    const { data: metricsData } = await fetchAllRows("grammar_metrics", "*");
     if (metricsData) { grammarMetricsRef.current = metricsData; setGrammarMetrics(metricsData); }
 
-    const { data: vocabData, error: vocabErr } = await supabase
-      .from("vocab")
-      .select("*, sentences(id, blanked_albanian, target_albanian, target_english, english_translation, grammar_type, grammar_value)");
+    const { data: vocabData, error: vocabErr } = await fetchAllRows(
+      "vocab",
+      "*, sentences(id, blanked_albanian, target_albanian, target_english, english_translation, grammar_type, grammar_value)"
+    );
 
     if (vocabErr) {
       console.error("Failed to fetch vocab + sentences:", vocabErr);

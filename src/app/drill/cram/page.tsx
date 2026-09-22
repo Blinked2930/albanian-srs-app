@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { evaluateAnswer } from "@/lib/logic";
 import DictionaryModal from "@/components/DictionaryModal";
-import { supabase, isDemoMode } from "@/lib/supabaseClient";
+import { supabase, isDemoMode, fetchAllRows } from "@/lib/supabaseClient";
 import { useTimeTracker } from "@/hooks/useTimeTracker";
 
 export default function CramDrill() {
@@ -69,7 +69,7 @@ export default function CramDrill() {
       const ids = JSON.parse(stored);
       if (ids.length === 0) { router.push('/'); return; }
 
-      const { data, error } = await supabase.from("vocab").select("*").in('id', ids);
+      const { data, error } = await fetchAllRows("vocab", "*", { filter: (q) => q.in('id', ids) });
       if (error || !data) { router.push('/'); return; }
 
       setDbVocab(data);
