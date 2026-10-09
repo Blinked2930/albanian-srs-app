@@ -548,7 +548,7 @@ export default function ImmersionReader() {
 
   return (
     <main className="min-h-[100dvh] bg-[#fafafa] p-4 sm:p-8 pt-8 sm:pt-12 pb-[calc(env(safe-area-inset-bottom)+6rem)] relative overflow-x-hidden">
-      <div className="fixed inset-0 w-full h-full bg-gradient-to-br from-indigo-100/40 via-purple-50/20 to-fuchsia-100/40 z-0 pointer-events-none"></div>
+      <div className="fixed inset-0 w-full h-full bg-gradient-to-br from-indigo-50/20 via-slate-50/10 to-purple-50/20 z-0 pointer-events-none"></div>
 
       {isDemoMode && (
         <div className="fixed top-4 left-4 z-[400] bg-slate-800 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-slate-600 flex items-center gap-2">

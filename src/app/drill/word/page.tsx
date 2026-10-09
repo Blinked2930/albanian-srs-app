@@ -221,9 +221,9 @@ export default function WordDrill() {
       finalTargetPlurality = ["Singular", "Plural"].reduce((m, c) => getUrgency('adjective_plurality', c) > getUrgency('adjective_plurality', m) ? c : m);
       constraints = [finalTargetGender, finalTargetPlurality];
       
-      const adjData = dbAdjectivesRef.current.find(a => a.vocab_id === word.id);
+      const adjData = dbAdjectivesRef.current.find(a => a.vocab_id === word.id && a.adj_case === 'Nominative') || dbAdjectivesRef.current.find(a => a.vocab_id === word.id);
       if (adjData) {
-        const colMap: any = { "Masculine:Singular": "masc_sg", "Feminine:Singular": "fem_sg", "Masculine:Plural": "masc_pl", "Feminine:Plural": "fem_pl" };
+        const colMap: any = { "Masculine:Singular": "indef_masc_sg", "Feminine:Singular": "indef_fem_sg", "Masculine:Plural": "indef_masc_pl", "Feminine:Plural": "indef_fem_pl" };
         expectedAnswer = adjData[colMap[`${finalTargetGender}:${finalTargetPlurality}`]] || word.albanian;
       }
     } else if (word.type?.startsWith("Noun")) {

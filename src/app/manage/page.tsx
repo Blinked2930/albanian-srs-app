@@ -110,6 +110,34 @@ export default function ManageVocab() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [toast, setToast] = useState<{ message: string, emoji: string, type: 'error' | 'info' } | null>(null);
+
+  const showToast = (message: string, emoji: string = "✅", type: 'error' | 'info' = 'info') => {
+    setToast({ message, emoji, type });
+    setTimeout(() => setToast(null), 3000); 
+  };
+
+  const handleAddToCram = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const existingIdsStr = sessionStorage.getItem('cram_builder_ids');
+      let existingIds: string[] = [];
+      if (existingIdsStr) {
+        existingIds = JSON.parse(existingIdsStr);
+      }
+      if (!existingIds.includes(id)) {
+        existingIds.push(id);
+        sessionStorage.setItem('cram_builder_ids', JSON.stringify(existingIds));
+        showToast("Added to temporary flashcard deck! Start it on Home.", "📚");
+      } else {
+        showToast("Already in your temporary flashcard deck.", "ℹ️");
+      }
+    } catch (error) {
+      console.error(error);
+      showToast("Failed to add to cram deck.", "❌", "error");
+    }
+  };
+
   useEffect(() => {
     fetchVocab();
     if (!isDemoMode) fetchAllPrompts();
@@ -529,12 +557,21 @@ export default function ManageVocab() {
     <main className="min-h-[100dvh] bg-[#fafafa] p-4 sm:p-8 pt-8 sm:pt-12 pb-[calc(env(safe-area-inset-bottom)+6rem)] relative overflow-x-hidden">
       
       {/* Background Glow */}
-      <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-gradient-to-br from-pink-100/40 via-purple-50/20 to-indigo-100/40 z-0 pointer-events-none"></div>
+      <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-gradient-to-br from-indigo-50/20 via-purple-50/10 to-slate-100/20 z-0 pointer-events-none"></div>
 
       {isDemoMode && (
         <div className="fixed top-4 left-4 z-[400] bg-slate-800 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase border-2 border-slate-600 flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
           Ghost Mode: Read Only
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] animate-in slide-in-from-top-10 fade-in duration-300">
+          <div className="bg-slate-800/95 backdrop-blur-xl border-2 border-slate-700 shadow-2xl px-6 py-3.5 rounded-full flex items-center gap-3">
+            <span className="text-xl">{toast.emoji}</span>
+            <span className="text-white font-bold text-sm tracking-wide">{toast.message}</span>
+          </div>
         </div>
       )}
 
@@ -662,9 +699,14 @@ export default function ManageVocab() {
                     <div className="text-base sm:text-lg font-bold text-slate-500 mt-1">{item.english}</div>
                   </div>
                   {!isDemoMode && (
-                    <button onClick={(e) => handleDeleteClick(item.id, e)} className="text-slate-300 hover:text-rose-500 transition-colors p-2.5 rounded-xl hover:bg-rose-50 bg-white" title="Delete word">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
-                    </button>
+                    <div className="flex gap-2">
+                      <button onClick={(e) => handleAddToCram(item.id, e)} className="text-slate-300 hover:text-indigo-500 transition-colors p-2.5 rounded-xl hover:bg-indigo-50 bg-white" title="Add to temporary cram deck">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M12 8v6"/><path d="M9 11h6"/></svg>
+                      </button>
+                      <button onClick={(e) => handleDeleteClick(item.id, e)} className="text-slate-300 hover:text-rose-500 transition-colors p-2.5 rounded-xl hover:bg-rose-50 bg-white" title="Delete word">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
+                      </button>
+                    </div>
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 mt-4">
@@ -723,9 +765,14 @@ export default function ManageVocab() {
                     <td className="px-6 py-5"><div className="flex items-center gap-3"><span className="text-sm text-slate-400 font-black w-8">{Math.round((item.mastery_score || 0) * 100)}%</span><MiniTrend logs={item.review_logs} /></div></td>
                     {!isDemoMode && (
                       <td className="px-6 py-5 text-right">
-                        <button onClick={(e) => handleDeleteClick(item.id, e)} className="text-slate-300 hover:text-rose-500 transition-colors p-2.5 rounded-xl hover:bg-rose-50 opacity-0 group-hover:opacity-100 focus:opacity-100 bg-white" title="Delete word">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
-                        </button>
+                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={(e) => handleAddToCram(item.id, e)} className="text-slate-300 hover:text-indigo-500 transition-colors p-2.5 rounded-xl hover:bg-indigo-50 focus:opacity-100 bg-white shadow-sm" title="Add to temporary cram deck">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M12 8v6"/><path d="M9 11h6"/></svg>
+                          </button>
+                          <button onClick={(e) => handleDeleteClick(item.id, e)} className="text-slate-300 hover:text-rose-500 transition-colors p-2.5 rounded-xl hover:bg-rose-50 focus:opacity-100 bg-white shadow-sm" title="Delete word">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>

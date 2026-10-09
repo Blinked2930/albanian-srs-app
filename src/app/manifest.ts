@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "An Albanian language spaced repetition learning app",
     start_url: "/",
     display: "standalone",
-    background_color: "#FFF5F7",
-    theme_color: "#FFF5F7",
+    background_color: "#fafafa",
+    theme_color: "#fafafa",
     orientation: "portrait-primary",
     icons: [
       {
